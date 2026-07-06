@@ -48,7 +48,7 @@ jobs:
         if: github.ref == 'refs/heads/main'
         uses: actions/upload-pages-artifact@v3
         with:
-          path: ./book/html   # with the linkcheck backend, html output nests under book/html
+          path: ./book   # linkcheck backend is disabled in book.toml, so the html backend writes to book/ directly
 
   deploy:
     if: github.ref == 'refs/heads/main'
