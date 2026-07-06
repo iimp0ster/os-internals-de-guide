@@ -1,0 +1,22 @@
+#!/usr/bin/env bpftrace
+/*
+ * EDR-tier execution capture: full argv on every execve, no truncation.
+ * Run: sudo bpftrace labs/linux/bpftrace/exec-trace.bt
+ *
+ * This is the deliberate contrast to auditd's EXECVE records (which can truncate
+ * long argument vectors). The execve tracepoint hands us the complete argv[].
+ *
+ * For a richer, production-shaped tool (ppid, return value, uid), use execsnoop.bt
+ * from the bpftrace tools repo, or Cilium Tetragon's process_exec events.
+ */
+
+BEGIN
+{
+    printf("%-10s %-6s %-16s %s\n", "TIME", "PID", "COMM", "ARGS");
+}
+
+tracepoint:syscalls:sys_enter_execve
+{
+    printf("%-10u %-6d %-16s ", elapsed / 1000000, pid, comm);
+    join(args->argv);
+}

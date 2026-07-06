@@ -1,0 +1,39 @@
+#!/usr/bin/env bpftrace
+/*
+ * EDR-tier dynamic-library-load sensor (Part I ch.2, T1574.006 LD_PRELOAD / dlopen).
+ * Catches the loader-resolution cut that has NO auditd equivalent — Linux has no
+ * "library loaded" SIEM event; this uprobe is the only cheap way to see dlopen().
+ *
+ * Run: sudo bpftrace labs/linux/bpftrace/dlopen-trace.bt
+ *
+ * ─── THE PATH GOTCHA (this is why it "doesn't work out of the box") ──────────
+ * • dlopen lives in DIFFERENT libraries by glibc version: glibc >= 2.34 folded libdl
+ *   into libc, so it is in libc.so.6; on glibc < 2.34 it is in libdl.so.2. And the path
+ *   differs by distro/arch: Debian/Ubuntu x86-64 = /lib/x86_64-linux-gnu/, RHEL/arch =
+ *   /lib64/ or /usr/lib64/. There is NO portable path — find yours first:
+ *     find / -name 'libc.so.6' 2>/dev/null ; objdump -T <libc> | grep -w dlopen
+ *   then set the uprobe target accordingly. Both candidate probes are below; the one
+ *   whose library/symbol does not exist will simply fail to attach — comment it out.
+ * • uprobes need ROOT and the target lib readable; they attach per-binary path, not
+ *   per-process, so this sees dlopen across ALL processes using that libc — high volume,
+ *   filter by lib argument in post if needed.
+ * • This sees dlopen() calls (RTLD_*); it does NOT see preloads injected via the
+ *   LD_PRELOAD env var at exec or /etc/ld.so.preload — those are resolved by ld.so before
+ *   main() and don't call dlopen. Pair with the audit.rules ld_preload watch + the
+ *   `env LD_PRELOAD=` execve form for that path.
+ */
+
+BEGIN { printf("%-10s %-6s %-16s %s\n", "TIME(ms)", "PID", "COMM", "DLOPEN"); }
+
+/* glibc >= 2.34 — dlopen in libc. Adjust the path to your distro/arch (see header). */
+uprobe:/lib/x86_64-linux-gnu/libc.so.6:dlopen
+{
+    printf("%-10u %-6d %-16s %s\n", elapsed / 1000000, pid, comm, str(arg0));
+}
+
+/* glibc < 2.34 — dlopen in libdl. Uncomment if the libc probe above won't attach.
+uprobe:/lib/x86_64-linux-gnu/libdl.so.2:dlopen
+{
+    printf("%-10u %-6d %-16s %s\n", elapsed / 1000000, pid, comm, str(arg0));
+}
+*/

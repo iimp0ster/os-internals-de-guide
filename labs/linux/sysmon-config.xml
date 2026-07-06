@@ -1,0 +1,24 @@
+<!--
+  Sysmon for Linux capture config — bridge tier (Windows-shaped EventIDs).
+  Install:  sudo apt install sysmonforlinux  (or build from microsoft/SysmonForLinux)
+  Apply:    sudo sysmon -accepteula -i labs/linux/sysmon-config.xml
+  Read:     sudo cat /var/log/syslog | grep -i sysmon   (or via journald / your SIEM)
+
+  onmatch="exclude" with no inner rules == capture everything. Fine for a lab; far too
+  noisy for production. unverified: validate schemaversion against `sysmon -s` on your
+  build — the Linux schema version trails Windows Sysmon and changes across releases.
+-->
+<Sysmon schemaversion="4.81">
+  <EventFiltering>
+    <RuleGroup name="capture-all-process" groupRelation="or">
+      <ProcessCreate onmatch="exclude"/>
+    </RuleGroup>
+    <RuleGroup name="capture-all-netconn" groupRelation="or">
+      <NetworkConnect onmatch="exclude"/>
+    </RuleGroup>
+    <RuleGroup name="capture-all-filecreate" groupRelation="or">
+      <FileCreate onmatch="exclude"/>
+    </RuleGroup>
+    <ProcessTerminate onmatch="exclude"/>
+  </EventFiltering>
+</Sysmon>

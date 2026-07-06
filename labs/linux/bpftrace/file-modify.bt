@@ -1,0 +1,46 @@
+#!/usr/bin/env bpftrace
+/*
+ * EDR-tier config/autostart WRITE sensor (Part II persistence; Part I loader hijack).
+ * Catches what a create-only sensor misses: an APPEND/modify to a file that already
+ * exists (~/.bashrc, /etc/ld.so.preload, a unit file, a crontab).
+ *
+ * Run: sudo bpftrace labs/linux/bpftrace/file-modify.bt
+ *
+ * ─── WHY openat, not vfs_write ───────────────────────────────────────────────
+ * • The rc/persistence cut is "the file was modified". vfs_write fires per WRITE call
+ *   (huge volume, and you only get an fd + bytes, no path) — filtering it to a handful
+ *   of paths means resolving the dentry on every write, which is fragile and slow.
+ * • Instead we hook openat(2) for opens carrying write intent (O_WRONLY|O_RDWR|O_CREAT|
+ *   O_APPEND) and string-match the filename. This catches the open-for-append that
+ *   precedes the write, with the path in hand. Trade-off: it flags an open even if no
+ *   bytes are written (rare for these paths) — confirm with the matching auditd -p wa
+ *   record or a follow-on vfs_write if you need write-confirmation.
+ * • GOTCHA: openat flags are arch/libc constants — O_WRONLY=01, O_RDWR=02, O_CREAT=0100,
+ *   O_APPEND=02000 (octal). We test the low write bits + create/append. Editors that use
+ *   rename-into-place (vim writing a temp then rename) will show the TEMP path open, not
+ *   the target — pair with the auditd dir= watch which sees the rename. Needs ROOT + BTF.
+ */
+
+BEGIN { printf("%-10s %-6s %-16s %-6s %s\n", "TIME(ms)", "PID", "COMM", "FLAGS", "PATH"); }
+
+tracepoint:syscalls:sys_enter_openat
+/
+  ( (args->flags & 3) || (args->flags & 0100) || (args->flags & 02000) ) &&
+  (
+    strcontains(str(args->filename), ".bashrc")  || strcontains(str(args->filename), ".zshrc")     ||
+    strcontains(str(args->filename), ".profile") || strcontains(str(args->filename), "profile.d")  ||
+    strcontains(str(args->filename), "autostart")|| strcontains(str(args->filename), "rc.local")   ||
+    strcontains(str(args->filename), "ld.so.preload") ||
+    strcontains(str(args->filename), "systemd/system") || strcontains(str(args->filename), "cron")
+  )
+/
+{
+    printf("%-10u %-6d %-16s 0%-5o %s\n",
+           elapsed / 1000000, pid, comm, args->flags, str(args->filename));
+}
+
+/*
+ * NOTE: strcontains() needs bpftrace >= 0.18. On older bpftrace, swap to a fixed-prefix
+ * compare or filter in post (pipe through grep). Listing the probe first is wise:
+ *   sudo bpftrace -l 'tracepoint:syscalls:sys_enter_openat'
+ */

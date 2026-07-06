@@ -1,0 +1,106 @@
+## auditd capture ruleset for the guide — SIEM-tier Linux sensor.
+## Load ad-hoc:   sudo auditctl -R labs/linux/audit.rules
+## Persist:       copy to /etc/audit/rules.d/guide.rules && sudo augenrules --load
+## Inspect:       sudo ausearch -k <key> --start recent -i
+##
+## ─── READ THIS FIRST — auditd does not "just work" ───────────────────────────
+## • NOT ON BY DEFAULT. auditd is *not installed* on Ubuntu/Debian/most cloud AMIs
+##   (`apt install auditd`); on RHEL/Fedora the `audit` package is installed AND the
+##   service runs by default. "We see no Linux persistence/privesc" on an Ubuntu box
+##   is almost always *no sensor*, not *no threat* — the guide's recurring blind spot.
+## • Confirm it is actually capturing:  sudo auditctl -s   (enabled 1, pid != 0)
+##   and that rules loaded:             sudo auditctl -l
+## • The kernel audit backlog drops events under load (see -b / -f below); a missed
+##   event is indistinguishable from "didn't happen" — tune -b up for capture runs.
+## • `-w` does NOT expand globs or `~`. You cannot watch "every user's ~/.bashrc"
+##   with one rule — see the LOGIN/SHELL section for the per-user caveat.
+## • The `-C uid!=euid` field comparison needs a reasonably recent audit userspace
+##   (auditctl ≥ 2.x); on ancient distros the privesc rule silently fails to load —
+##   check `auditctl -l` shows it after loading.
+
+-D
+## bigger backlog for capture runs (default 8192 drops under burst)
+-b 16384
+## printk on backlog full, so you SEE drops instead of losing events silently
+-f 1
+
+## ─── EXECUTION (Part I) ──────────────────────────────────────────────────────
+## RULE ORDERING — auditd evaluates syscall rules first-match-wins, so the SPECIFIC
+## execve rules (uid!=euid privesc, pkexec execute-watch) MUST come BEFORE the broad
+## -k exec catch-all below. Otherwise the general rule matches first and the event is
+## tagged key=exec, never key=privesc (verified live: a uid=1000/euid=0 SUID exec was
+## keyed `exec` when the catch-all preceded it, so `ausearch -k privesc` saw nothing).
+-a always,exit -F arch=b64 -S execve,execveat -C uid!=euid -k privesc
+-a always,exit -F arch=b32 -S execve,execveat -C uid!=euid -k privesc
+-w /usr/bin/pkexec -p x -k privesc
+## Catch-all execve+execveat (32/64-bit). execveat covers fexecve / memfd anon-exec, but
+## the EXECVE record can TRUNCATE long argv — the documented SIEM blind spot vs eBPF/ESF.
+-a always,exit -F arch=b64 -S execve,execveat -k exec
+-a always,exit -F arch=b32 -S execve,execveat -k exec
+
+## In-memory / fileless (T1620): anonymous in-mem file then exec. auditd has no clean
+## "memfd" event — it shows up only as an execve/execveat whose path is empty/anonymous
+## (name resolves to 'memfd:… (deleted)'). The argc==0 / empty-path tell is fragile at
+## this tier; the eBPF trace (bpftrace/memfd-exec.bt) is the authoritative sensor.
+-a always,exit -F arch=b64 -S memfd_create -k memfd
+
+## ─── PRIVILEGE ESCALATION (Part III) ─────────────────────────────────────────
+## setuid/sudo euid→0 AT EXEC: catch execve where the real uid differs from the
+## effective uid. NOTE: this is the *only* SIEM-tier signal for SUID/GTFOBins abuse,
+## and it does NOT cover the capability path (cap_setuid → in-process setuid(0) with
+## no exec) — that is eBPF-only. Requires auditctl with -C inter-field comparison.
+## (Defined in the EXECUTION block above, ahead of the -k exec catch-all — see the RULE
+##  ORDERING note; placed here, after -k exec, the catch-all would shadow it: key=exec.)
+## PolKit / PwnKit (CVE-2021-4034): pkexec is SUID-root, so a normal pkexec run ALREADY trips
+## the uid!=euid rule above — that tells you pkexec executed, NOT that it was exploited. The
+## PwnKit tell is the exploit's own shape: pkexec invoked with argc==0 (no argv[0]) so its
+## out-of-bounds argv read reaches an attacker-set environ slot, with a GCONV_PATH= entry
+## pointing at a writable dir holding a malicious gconv module + a crafted gconv-modules file.
+## This -w execute watch records the pkexec EXECVE/SYSCALL so you can anchor on it.
+## ANCHOR NOTE (matches the §6 02-polkit fix): characterize PwnKit on the SYSCALL record —
+##   comm:'pkexec' (or exe|endswith '/pkexec') AND argc:0
+## Do NOT anchor on `a0|endswith '/pkexec'` AND argc==0 together: argc==0 means there IS no
+## a0, so the two are mutually exclusive and the pair never matches. The argv[0] is absent on
+## the SYSCALL record's argc, not present on the EXECVE record. The writable-dir GCONV_PATH
+## file write is the EDR-tier corroborator (file-modify.bt / a -w on the drop dir) and only
+## fires on an UNPATCHED pkexec — a patched pkexec aborts on argc==0 before iconv() loads it.
+## (the -w pkexec execute-watch is defined in the EXECUTION block above, ahead of -k exec.)
+## A new SUID/SGID binary being created (chmod u+s / g+s) — MITRE T1548.001 analytic.
+-a always,exit -F arch=b64 -S chmod,fchmod,fchmodat -F auid>=1000 -F auid!=4294967295 -k suid_change
+
+## ─── LOADER HIJACK (Part I ch.2) ─────────────────────────────────────────────
+## /etc/ld.so.preload is a specific file → -w works. The PATH record shows the inode
+## was modified, NOT the content written — pair with a file-integrity tool to see what
+## was added. The per-process LD_PRELOAD env var is NOT here: it is not in the EXECVE
+## argv unless passed via an `env VAR=… cmd` wrapper; the inherited form needs eBPF.
+-w /etc/ld.so.preload -p wa -k ld_preload
+
+## ─── PERSISTENCE: service / scheduled / login config writes (Part II) ─────────
+## DIRECTORIES need `-F dir=` (recursive), NOT `-w` (which watches only the dir inode
+## and misses file creates inside it). perm=wa = write+attr-change.
+-a always,exit -F dir=/etc/systemd/system/ -F perm=wa -k svc_unit
+-a always,exit -F dir=/usr/lib/systemd/system/ -F perm=wa -k svc_unit
+-a always,exit -F dir=/etc/cron.d/ -F perm=wa -k cron
+-a always,exit -F dir=/var/spool/cron/ -F perm=wa -k cron
+## crontab(1) installs via a temp file + rename() onto the spool path, so the event may
+## record nametype=NORMAL/RENAME rather than CREATE — match WRITE, not CREATE-only.
+-w /etc/crontab -p wa -k cron
+-a always,exit -F dir=/etc/profile.d/ -F perm=wa -k login_hook
+-w /etc/rc.local -p wa -k login_hook
+## sudoers tamper (NOPASSWD / !tty_tickets — Dok/Proton class).
+-w /etc/sudoers -p wa -k sudoers
+-a always,exit -F dir=/etc/sudoers.d/ -F perm=wa -k sudoers
+
+## ─── PER-USER rc / XDG autostart — THE GLOB LIMITATION ───────────────────────
+## auditd CANNOT watch "~/.bashrc for all users" — no globbing, no ~ expansion. Options:
+##  (a) add an explicit -w per home you care about (shown for root + one lab user), or
+##  (b) watch /home recursively (-F dir=/home -F perm=wa) — VERY noisy, lab-only.
+## rc files already EXIST, so the attack APPENDS — a create-only sensor misses it;
+## -p wa catches the write. (The EDR equivalent is bpftrace/file-modify.bt.)
+-w /root/.bashrc -p wa -k login_hook
+-w /root/.profile -p wa -k login_hook
+## -w /home/<labuser>/.bashrc -p wa -k login_hook      ## add per real user
+## -a always,exit -F dir=/home -F perm=wa -k login_hook ## (b) noisy catch-all, lab only
+
+## Make rules immutable (requires reboot to change). Leave commented while iterating.
+# -e 2

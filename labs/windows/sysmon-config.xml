@@ -1,0 +1,218 @@
+<!--
+  Sysmon (Windows) CAPTURE-tier config for the guide — Wave-2 Windows sensor.
+  This is the deliberately INCLUSIVE lab counterpart to labs/linux/{audit.rules,sysmon-config.xml}.
+  It is NOT a SwiftOnSecurity-style production noise filter: the goal is to *capture the cut*, then
+  clear it against a benign baseline (see methodology.md), not to keep the channel quiet in prod.
+
+  Install:  download Sysmon from https://learn.microsoft.com/sysinternals/downloads/sysmon
+            (Sysmon64.exe). No package manager needed; ships as a single signed binary.
+  Apply:    Sysmon64.exe -accepteula -i labs\windows\sysmon-config.xml
+  Update:   Sysmon64.exe -c labs\windows\sysmon-config.xml      (reload config without reinstall)
+  Read:     Event Viewer -> Applications and Services Logs -> Microsoft-Windows-Sysmon/Operational
+            or:  wevtutil qe Microsoft-Windows-Sysmon/Operational /f:text /c:20 /rd:true
+            or:  Get-WinEvent -LogName Microsoft-Windows-Sysmon/Operational -MaxEvents 20
+  Dump effective schema for YOUR build:  Sysmon64.exe -s
+
+  ─── READ THIS FIRST — capture blind spots / footguns ──────────────────────────────────────────
+  * SCHEMAVERSION DRIFT. The schemaversion below must be <= your installed Sysmon's schema or `-i`
+    rejects the file. unverified: validate against `Sysmon64.exe -s` on your build; bump/lower the
+    attribute to match. Field names (e.g. signature fields on EID 7) also vary by schema — if a
+    field below is unknown to your build, that <Rule>/<Field> is ignored or errors on load.
+  * EID 7 (ImageLoad) and EID 10 (ProcessAccess) ARE THE DROP RISK. Both are EXTREMELY high volume
+    (every DLL load by every process; every cross-process handle open). A naive capture-all on
+    these floods the channel and the events we actually want (the unsigned side-load; the injection
+    handle) get dropped under backlog. So below: cheap EIDs are capture-all (onmatch="exclude" with
+    no inner rule); EID 7 and EID 10 use LIGHT, INCLUSIVE scoping (onmatch="include") that still
+    admits every plan cell — we include the signal, we don't exclude-everything. Tune, then widen.
+  * SIGNATURE FIELDS ARE OPT-IN. EID 7's Signed / Signature / SignatureStatus are NOT emitted unless
+    the ImageLoad rule references them — and signature verification adds load. The side-load rule
+    (02-native-exec-loader) is useless without them, so they are referenced explicitly below.
+  * EID 10 GrantedAccess: the INJECTION tell is the write/inject bits (PROCESS_VM_WRITE |
+    PROCESS_CREATE_THREAD, e.g. 0x0820), NOT 0x1438 / 0x143A / 0x1410 — those are LSASS credential-
+    DUMP masks (ProcDump/Mimikatz). Capturing on the source-image scope below keeps both classes of
+    event; the detection (§6) is what must key on the right mask. See the EID 10 block.
+  * EID 25 (ProcessTampering: hollowing / herpaderping / process-image replacement) requires
+    Sysmon >= 13.00. unverified: confirm your build is >= 13.00 or this section silently does nothing.
+  * Sysmon is a SENSOR, not a SIEM. These events land in the local Operational channel; forward them
+    (WEF / your agent) for the §6 rules to actually run. A missing forwarder == "we see nothing".
+
+  ─── COMPANION (non-Sysmon) SOURCES — this config CANNOT provide these; the capture runbook MUST
+      pull them alongside Sysmon or the named §6 rules stay blind ──────────────────────────────────
+  * PowerShell Script Block Logging — EID 4104 in Microsoft-Windows-PowerShell/Operational (NOT
+    Sysmon). Feeds 01-script-exec (IEX DownloadString cradle, FIN-style commodity loaders): Sysmon
+    gives EID 1 (powershell.exe lineage) + EID 3 (the fetch edge), but ONLY 4104 carries the
+    deobfuscated script *content* ("code runs" node). Enable via GPO/registry:
+      HKLM\SOFTWARE\Policies\Microsoft\Windows\PowerShell\ScriptBlockLogging\EnableScriptBlockLogging=1
+  * Microsoft-Windows-TaskScheduler/Operational — EID 106 (task registered) / 200 (action ran),
+    NOT Sysmon. Feeds 02-scheduled (Emotet schtasks; Wizard Spider TaskCache). 106 carries only
+    TaskName + UserContext — NO action/command — so correlate 106 to the task XML drop (Sysmon
+    EID 11 on C:\Windows\System32\Tasks\<name>) or the schtasks.exe CommandLine (Sysmon EID 1).
+    Channel is present but DISABLED by default: wevtutil sl Microsoft-Windows-TaskScheduler/Operational /e:true
+  * RPC Firewall (RPCFW) — EID 3 in the RPCFW channel (a SEPARATE 3rd-party sensor), or MS-RPC ETW.
+    Feeds 02-polkit-authz (SCShell/PsExec svcctl over-trust, MS-SCMR/MS-TSCH remote interface call).
+    Sysmon sees ONLY the EID 1 outcome (sc.exe / the spawned service child) + the PsExec named pipe
+    (EID 17/18) — never the RPC interface/opnum itself. There is no native reliable SIEM-tier RPC event.
+-->
+<Sysmon schemaversion="4.90">
+  <!-- HashAlgorithms feed EID 1/7 Hashes; IMPHASH helps cluster side-load hosts. CheckRevocation off
+       in a lab to avoid OCSP stalls on signature checks (we still get Signed/SignatureStatus). -->
+  <HashAlgorithms>SHA256,IMPHASH</HashAlgorithms>
+  <CheckRevocation>False</CheckRevocation>
+
+  <EventFiltering>
+
+    <!-- ════ EID 1 ProcessCreate — capture-all except Edge/WebView2 noise ════════════════════════
+         Lineage EVERYWHERE: parent/child chains anchor nearly every §6 cut. Carries IntegrityLevel
+         (fodhelper UAC bypass: High-IL child under a Medium-IL parent, 01-elevation Glupteba),
+         the schtasks.exe CommandLine (02-scheduled Emotet — the action 106 omits), and sc.exe
+         create (02-polkit SCShell svcctl outcome).
+         EXCLUSION: msedgewebview2.exe floods hundreds of EID 1 events/sec when M365Copilot is
+         running on the interactive session; this saturates the Sysmon global event queue and causes
+         EID 12/13 events from other cells (sched02) to be dropped. Excluding it restores capture. -->
+    <RuleGroup name="proc-create-all" groupRelation="or">
+      <ProcessCreate onmatch="exclude">
+        <Image condition="end with">\msedgewebview2.exe</Image>
+      </ProcessCreate>
+    </RuleGroup>
+
+    <!-- ════ EID 3 NetworkConnect — capture-all ═══════════════════════════════════════════════════
+         The fetch edge of the download cradle: powershell.exe making an outbound connect for
+         IEX (New-Object Net.WebClient).DownloadString(...) — 01-script-exec, commodity loaders.
+         EID 3 is the connect; the deobfuscated content is COMPANION 4104, not here (see header).
+         Moderate volume; capture-all is acceptable at lab tier (filter to non-RFC1918 in prod). -->
+    <RuleGroup name="net-connect-all" groupRelation="or">
+      <NetworkConnect onmatch="exclude"/>
+    </RuleGroup>
+
+    <!-- ════ EID 5 ProcessTerminate / EID 9 RawAccessRead-skipped; EID 11 below ═══════════════════ -->
+
+    <!-- ════ EID 7 ImageLoad — DROP-RISK: LIGHT INCLUSIVE scoping (NOT capture-all) ════════════════
+         Feeds 02-native-exec-loader: DLL side-loading (PlugX APT27/APT41 via Notepad++ GUP.exe) —
+         a SIGNED host process loading an UNSIGNED module from a user-writable path. Per-DLL-load is
+         the highest-volume Sysmon event; capture-all here drops the very side-load we want under
+         backlog. So include (onmatch="include") only loads that can BE the side-load:
+           (a) any module loaded from a user-writable / non-system path  (where sideloads live), OR
+           (b) any UNSIGNED module                                       (the side-load tell itself).
+         This still admits the GUP.exe cell (unsigned libcurl.dll planted beside the signed host).
+         The Signed / Signature / SignatureStatus FIELDS below are what make this rule possible AND
+         force Sysmon to actually evaluate signatures on these loads (opt-in, see header). -->
+    <RuleGroup name="imageload-sideload-scope" groupRelation="or">
+      <ImageLoad onmatch="include">
+        <!-- (a) loaded from a user-writable path — classic side-load staging dirs -->
+        <ImageLoaded condition="contains">\Users\</ImageLoaded>
+        <ImageLoaded condition="contains">\Temp\</ImageLoaded>
+        <ImageLoaded condition="contains">\ProgramData\</ImageLoaded>
+        <ImageLoaded condition="contains">\AppData\</ImageLoaded>
+        <ImageLoaded condition="contains">\Downloads\</ImageLoaded>
+        <ImageLoaded condition="contains">\Public\</ImageLoaded>
+        <!-- (b) the side-load tell regardless of path: an unsigned / unverified module. These
+             three fields are the signed-host-loads-unsigned-sideload anchor the §6 rule keys on.
+             unverified: exact field names/values (Signed=false; SignatureStatus 'Unavailable'/
+             'Expired'/'Untrusted') vary by schema — confirm with `Sysmon64.exe -s`. -->
+        <Signed condition="is">false</Signed>
+        <SignatureStatus condition="is not">Valid</SignatureStatus>
+      </ImageLoad>
+    </RuleGroup>
+
+    <!-- ════ EID 8 CreateRemoteThread — capture-all ═══════════════════════════════════════════════
+         Feeds 03-in-memory-exec: cross-process injection (Cobalt Strike Beacon reflective-DLL +
+         CreateRemoteThread into explorer.exe/rundll32.exe). Lower volume than 7/10 (creating a
+         remote thread is comparatively rare) → exclude-empty = capture-all is safe and desirable.
+         §6 alerts when SourceImage family != TargetImage family (self-injection is benign-common). -->
+    <RuleGroup name="remote-thread-all" groupRelation="or">
+      <CreateRemoteThread onmatch="exclude"/>
+    </RuleGroup>
+
+    <!-- ════ EID 10 ProcessAccess — DROP-RISK: LIGHT INCLUSIVE scoping (NOT capture-all) ═══════════
+         Feeds 03-in-memory-exec: the injection handle-open (the VM_WRITE/CREATE_THREAD access into
+         the victim). Like EID 7, capture-all is a flood (every cross-process handle). We scope by
+         TARGET image to high-value injection victims AND keep cred-dump targets so the §6 rule can
+         tell the two apart — WITHOUT excluding by GrantedAccess here (excluding masks at capture
+         time would silently drop events; mask discrimination belongs in §6, not the sensor).
+         CRITICAL READER NOTE — keying EID 10 on the RIGHT GrantedAccess:
+           injection tell  = WRITE/INJECT bits: PROCESS_VM_WRITE(0x20)|PROCESS_CREATE_THREAD(0x02)
+                             -> e.g. 0x0820 (substring/bit-test the write bits, do NOT match exact).
+           false matches   = 0x1438 / 0x143A / 0x1410 are LSASS credential-DUMP masks (ProcDump/
+                             Mimikatz read+query), NOT injection. An exact-0x1438 rule catches
+                             cred-dumpers and MISSES simple injectors. Capture both; discriminate in §6.
+         For RW->RX proof use EID 25 (below) / ETW-TI; ProcessAccess is the nearest Sysmon proxy. -->
+    <RuleGroup name="process-access-scope" groupRelation="or">
+      <ProcessAccess onmatch="include">
+        <!-- common injection victims (CS lateral targets) + the cred-dump target, all kept so the
+             §6 GrantedAccess logic — not the sensor — separates inject (0x0820) from dump (0x1438). -->
+        <TargetImage condition="end with">\lsass.exe</TargetImage>
+        <TargetImage condition="end with">\explorer.exe</TargetImage>
+        <TargetImage condition="end with">\rundll32.exe</TargetImage>
+        <TargetImage condition="end with">\svchost.exe</TargetImage>
+        <TargetImage condition="end with">\winlogon.exe</TargetImage>
+        <TargetImage condition="end with">\notepad.exe</TargetImage>
+        <!-- safety valve so a novel victim still gets captured: any access carrying the write/inject
+             bits. unverified: GrantedAccess is a hex string in the event; 'contains 0x0820' is a
+             coarse capture filter, not a precise mask test — the precise bit-test lives in §6. -->
+        <GrantedAccess condition="contains">0x0820</GrantedAccess>
+      </ProcessAccess>
+    </RuleGroup>
+
+    <!-- ════ EID 11 FileCreate — capture-all except Splunk forwarder noise ════════════════════════
+         Feeds, across chapters:
+           * 02-scheduled — the task XML drop at C:\Windows\System32\Tasks\<name> (correlate to the
+             COMPANION TaskScheduler 106, and the Wizard Spider direct-TaskCache injection).
+           * 01-service-daemon / 03-login-shell-hooks — Run-key payload drop, Startup-folder LNK,
+             Microsoft.PowerShell_profile.ps1 (FIN7 autostart file complement).
+         EXCLUSION: splunk-winevtlog.exe continuously writes to its own modinputs dirs, flooding
+         EID 11 and raising the event queue backpressure. Excluded to keep signal clean. -->
+    <RuleGroup name="file-create-all" groupRelation="or">
+      <FileCreate onmatch="exclude">
+        <Image condition="contains">SplunkUniversalForwarder</Image>
+      </FileCreate>
+    </RuleGroup>
+
+    <!-- ════ EID 12 RegistryEvent CreateKey/DeleteKey  &  EID 13 RegistryEvent SetValue ═══════════
+         Both are emitted by the RegistryEvent element. Capture-all minus high-rate AV/service noise —
+         registry write volume is load-bearing for FOUR cuts:
+           * 01-service-daemon (FIN7) — direct \Services\<svc>\ImagePath / ServiceDll edit (EID 13),
+             the 7045-evading complement that bypasses the SCM.
+           * 02-scheduled (Wizard Spider) — \Schedule\TaskCache\Tasks\ + \Tree\ injection (EID 12/13),
+             evades TaskScheduler 106.
+           * 03-login-shell-hooks (FIN7) — \CurrentVersion\Run, Winlogon\Userinit, Winlogon\Shell (EID 13).
+           * 01-elevation (Glupteba) — fodhelper HKCU shell-hijack:
+             \Software\Classes\ms-settings\shell\open\command (and mscfile / exefile variants) (EID 13).
+         Note: Sysmon abbreviates hives (HKLM\ -> 'HKLM\', HKCU\ -> 'HKU\<SID>\') in TargetObject;
+         §6 TargetObject|contains substrings must account for that.
+         EXCLUSIONS: MsMpEng.exe (Windows Defender) generates continuous high-rate EID 13 writes to
+         its own diagnostics/signature keys; this saturates the Sysmon EID 13 queue and causes our
+         attacker-simulated registry writes (Run key, Services, TaskCache) to be dropped.
+         Excluding MsMpEng.exe restores reliable capture of attacker-path EID 13 events. -->
+    <RuleGroup name="registry-all" groupRelation="or">
+      <RegistryEvent onmatch="exclude">
+        <Image condition="end with">\MsMpEng.exe</Image>         <!-- Defender: high-rate diagnostics/signature EID13 flood -->
+        <Image condition="end with">\wsmprovhost.exe</Image>     <!-- WinRM provider: floods EID12 CreateKey on SystemCertificates during session init -->
+        <Image condition="end with">\sihost.exe</Image>          <!-- Shell Infrastructure Host: floods EID12 CreateKey on BackgroundAccessApplications -->
+      </RegistryEvent>
+    </RuleGroup>
+
+    <!-- ════ EID 17 PipeEvent (Created)  &  EID 18 PipeEvent (Connected) ══════════════════════════
+         Both emitted by the PipeEvent element. Capture-all (exclude-empty) — named-pipe events are
+         low volume and feed two privilege cuts:
+           * 01-elevation (Potato family — PrintSpoofer / GodPotato / RoguePotato): the attacker
+             creates a named pipe and coerces a SYSTEM service to connect, then impersonates the
+             token. Pipe Created (17) + Connected (18) are the observable footprint (no §6 Sigma
+             covers the token swap itself by design; this is the lead).
+           * 02-polkit-authz (SCShell / PsExec svcctl path): PsExec's service named pipe
+             (\PSEXESVC and the \svcctl SMB pipe) — Sysmon's view of the remote-service create whose
+             RPC interface only the COMPANION RPCFW sees. -->
+    <RuleGroup name="pipe-all" groupRelation="or">
+      <PipeEvent onmatch="exclude"/>
+    </RuleGroup>
+
+    <!-- ════ EID 25 ProcessTampering — capture-all (Sysmon >= 13.00 only) ═════════════════════════
+         Feeds 03-in-memory-exec: process hollowing / herpaderping / image replacement — the
+         RW->RX / image-swap that EID 8/10 only proxy. Rare → capture-all (exclude-empty).
+         unverified: this element and EID exist only on Sysmon >= 13.00; on older builds `-i` errors
+         on the unknown element OR ignores it. Confirm build with `Sysmon64.exe -s`. -->
+    <RuleGroup name="proc-tamper-all" groupRelation="or">
+      <ProcessTampering onmatch="exclude"/>
+    </RuleGroup>
+
+  </EventFiltering>
+</Sysmon>

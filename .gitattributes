@@ -1,0 +1,11 @@
+# Artifacts that execute on the Linux capture VM (uploaded by labs/orchestrator) must
+# stay LF, or a Windows checkout with core.autocrlf=true will CRLF-break bash, auditctl,
+# and bpftrace on the VM. A .gitattributes only governs its own subtree, so this MUST
+# live at the repo root to reach both labs/orchestrator/ and labs/linux/.
+*.sh    text eol=lf
+*.bt    text eol=lf
+*.rules text eol=lf
+*.py    text eol=lf
+
+# Windows/macOS harness scripts: keep LF too (PowerShell Core handles LF fine).
+*.ps1   text eol=lf

@@ -1,0 +1,135 @@
+#!/usr/bin/env bpftrace
+/*
+ * EDR-tier in-process privilege-elevation sensor (Part III ch.1, custom-atomic T9999.001).
+ * Catches the elevation cut auditd is structurally blind to: a process that already holds
+ * CAP_SETUID calls setuid(0)/setresuid(0,...) IN-PROCESS and crosses to euid 0 WITHOUT an
+ * execve. No new program image, no EXECVE record, and the auditd `-C uid!=euid` privesc rule
+ * only compares creds AT EXEC — so this whole transition happens between two syscalls the SIEM
+ * tier never correlates. This eBPF view is the only sensor that names the cut.
+ *
+ * Fires §6 cell: 01-elevation-mechanisms Linux — "SUID->capabilities migration
+ *   (cap_setuid in-process setuid(0), no execve)". audit.rules itself flags this path as
+ *   eBPF-only in its PRIVILEGE ESCALATION section.
+ *
+ * Run: sudo bpftrace labs/linux/bpftrace/privesc-creds.bt
+ *
+ * ─── THE BLIND SPOT THIS COVERS ──────────────────────────────────────────────
+ * • auditd's privesc signal is `execve,execveat -C uid!=euid` — it can ONLY see a cred
+ *   mismatch carried across an exec boundary (SUID binary, sudo spawning a child). A process
+ *   that gains CAP_SETUID (file capability, or inherited) and then calls setuid(0) itself
+ *   never execs, so uid!=euid is never evaluated for it and no EXECVE record is emitted.
+ *   The credential change is invisible above the syscall layer.
+ * • commit_creds() is the single in-kernel chokepoint: EVERY credential install funnels
+ *   through it regardless of which syscall (setuid/setreuid/setresuid/setfsuid) or which
+ *   path (capability-driven, sudo, su, login) triggered it. Kprobing it once is therefore
+ *   the authoritative way to observe the actual euid landing — including the no-execve cap
+ *   path that a syscall-argument-only view could request-log but never confirm.
+ *
+ * ─── WHY BOTH A SYSCALL VIEW AND A commit_creds VIEW ─────────────────────────
+ * • Syscall tracepoints (sys_enter_set*uid) are STABLE across kernels and show INTENT —
+ *   the requested target uid and the calling comm/exe — but sys_enter only has the argument,
+ *   not the outcome (the call may fail with EPERM if the cap is absent). They are the cheap,
+ *   portable "who asked to become root" view.
+ * • The commit_creds kprobe shows the EFFECT — the new cred actually installed — and catches
+ *   transitions a syscall filter could miss (e.g. a cap path, or a future syscall variant).
+ *   We read the new cred's euid from arg0; that is a kernel-struct read, so it is the
+ *   version-sensitive half (see caveats). Run with both; corroborate intent against effect.
+ *
+ * ─── BENIGN BASELINE — tell signal from su/sudo/login noise ───────────────────
+ * Credential transitions to uid 0 are NORMAL on a busy host; do NOT treat any euid->0 as
+ * malicious. Expected benign emitters of the commit_creds-to-0 transition:
+ *   • sudo / su        — comm 'sudo'/'su', and the transition is immediately FOLLOWED by an
+ *                        execve of the target command (so an EXECVE record exists — the SIEM
+ *                        tier already sees these; they are NOT the blind cut).
+ *   • login / sshd / systemd-logind / cron / systemd — session and service managers set creds
+ *                        as part of normal session setup; high baseline volume, expected comms.
+ *   • polkit/pkexec    — its own cut; watched separately (audit.rules pkexec watch).
+ * The SIGNAL is a transition to euid 0 from a NON-root caller whose comm is NOT one of the
+ * above brokers AND that is NOT bracketed by an execve — i.e. a long-lived interpreter or
+ * service worker (python, a web-app worker, a custom ELF) that becomes root in place. That is
+ * the cap_setuid migration. Correlate the PID here against exec-trace.bt: if this PID shows
+ * NO execve around the transition, it is the no-execve elevation.
+ *
+ * ─── CAVEATS ─────────────────────────────────────────────────────────────────
+ * • The `uid` builtin is the REAL uid, not the effective uid. Verified from kernel source:
+ *   bpftrace's `uid` is bpf_get_current_uid_gid() -> current_uid_gid() -> current_cred()->uid
+ *   (the real-uid field; current_euid() reads ->euid). Two consequences you must hold:
+ *   (1) the `uid != 0` filters mean "real uid is non-root" — they do NOT exclude a SUID-root
+ *       process (real uid 1000, euid 0) that calls setuid(0) to finalise its creds; such a
+ *       process passes the filter and WILL print. That is why the signal is defined by post-hoc
+ *       correlation against exec-trace.bt (no surrounding execve), not by this predicate alone.
+ *   (2) on the commit_creds kprobe, `uid` is read at probe ENTRY — before commit installs the
+ *       new cred — so it is the OLD real uid (non-root in the cap_setuid case). That is the
+ *       intended behaviour; do not "fix" it to read the new cred's uid.
+ * • Needs ROOT and a BTF-enabled kernel (CONFIG_DEBUG_INFO_BTF=y) so bpftrace can resolve the
+ *   `struct cred` layout for the kprobe read; without BTF, install matching kernel headers.
+ *   Confirm the probe is attachable:  sudo bpftrace -l 'kprobe:commit_creds'
+ * • unverified: the `struct cred` field is `euid.val` (kuid_t wraps a u32 `val`) on current
+ *   kernels; on some trees the BTF accessor may differ — if `args`/field access errors, fall
+ *   back to printing only the syscall-intent view and read euid from /proc/<pid>/status.
+ * • unverified: setfsuid/setuid syscall arg widths and the exact tracepoint arg names
+ *   (args->uid / args->ruid / args->euid) can vary by kernel/arch; list the format first:
+ *     sudo bpftrace -lv 'tracepoint:syscalls:sys_enter_setresuid'
+ *   and adjust the field names below if attach/print fails.
+ * • commit_creds is a kprobe (function symbol), NOT a stable tracepoint — it is reliable on
+ *   mainline but a renamed/inlined symbol on an exotic kernel would not attach.
+ * • Containers: the transition is visible on the HOST trace, but uid values are in the INIT
+ *   user namespace view; a "0" inside a user-namespaced container maps to an unprivileged
+ *   host uid. Correlate by pid; do not assume euid 0 here equals host-root for namespaced pids.
+ */
+
+BEGIN
+{
+    printf("%-10s %-6s %-6s %-16s %-18s %s\n",
+           "TIME(ms)", "PID", "PPID", "COMM", "TRANSITION", "DETAIL");
+}
+
+/* ── INTENT: the credential-change syscalls. sys_enter shows the REQUESTED target uid and the
+ *    caller's CURRENT uid (uid != 0 here = a non-root process asking to become root). We fire
+ *    only when a non-root caller requests uid 0, which is the elevation request worth seeing. */
+
+tracepoint:syscalls:sys_enter_setuid
+/ uid != 0 && args->uid == 0 /
+{
+    printf("%-10u %-6d %-6d %-16s %-18s setuid(0) uid=%d->req0\n",
+           elapsed / 1000000, pid, curtask->real_parent->tgid, comm, "REQ uid->0 (r/e/s)", uid);
+}
+
+tracepoint:syscalls:sys_enter_setreuid
+/ uid != 0 && (args->ruid == 0 || args->euid == 0) /
+{
+    printf("%-10u %-6d %-6d %-16s %-18s setreuid(ruid=%d,euid=%d) uid=%d\n",
+           elapsed / 1000000, pid, curtask->real_parent->tgid, comm, "REQ ruid/euid->0",
+           args->ruid, args->euid, uid);
+}
+
+tracepoint:syscalls:sys_enter_setresuid
+/ uid != 0 && (args->ruid == 0 || args->euid == 0 || args->suid == 0) /
+{
+    printf("%-10u %-6d %-6d %-16s %-18s setresuid(r=%d,e=%d,s=%d) uid=%d\n",
+           elapsed / 1000000, pid, curtask->real_parent->tgid, comm, "REQ resuid->0",
+           args->ruid, args->euid, args->suid, uid);
+}
+
+tracepoint:syscalls:sys_enter_setfsuid
+/* the setfsuid syscall tracepoint names its argument 'uid' (not 'fsuid') */
+/ uid != 0 && args->uid == 0 /
+{
+    printf("%-10u %-6d %-6d %-16s %-18s setfsuid(0) uid=%d->req0\n",
+           elapsed / 1000000, pid, curtask->real_parent->tgid, comm, "REQ fsuid->0", uid);
+}
+
+/* ── EFFECT: the in-kernel chokepoint. arg0 is the `struct cred *` about to be installed.
+ *    We fire when the NEW effective uid is 0 but the CALLING task's current uid is non-root —
+ *    i.e. an actual transition to root in place. This is the authoritative landing signal,
+ *    and the one that catches the cap_setuid path with no execve. Cross-reference the printed
+ *    EXE against exec-trace.bt: a transition here with no surrounding execve for this PID is
+ *    the no-execve elevation cut. */
+
+kprobe:commit_creds
+/ uid != 0 && ((struct cred *)arg0)->euid.val == 0 /
+{
+    printf("%-10u %-6d %-6d %-16s %-18s commit_creds euid->0 (uid was %d) exe=%s\n",
+           elapsed / 1000000, pid, curtask->real_parent->tgid, comm, "LAND euid->0",
+           uid, str(curtask->mm->exe_file->f_path.dentry->d_name.name));
+}

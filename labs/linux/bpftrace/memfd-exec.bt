@@ -1,0 +1,38 @@
+#!/usr/bin/env bpftrace
+/*
+ * EDR-tier in-memory / fileless execution sensor (Part I ch.3, T1620).
+ * Catches the anonymous-exec cut auditd cannot name: memfd_create() then
+ * execveat(fd, "", AT_EMPTY_PATH) — code that never had an on-disk image.
+ *
+ * Run: sudo bpftrace labs/linux/bpftrace/memfd-exec.bt
+ *
+ * ─── WHY THIS EXISTS / GOTCHAS ───────────────────────────────────────────────
+ * • SIEM-tier is blind here: auditd shows only an execve/execveat with an empty or
+ *   'memfd:… (deleted)' path; /proc/<pid>/exe is unresolvable. This eBPF view is the
+ *   authoritative sensor for the cut.
+ * • bpftrace needs ROOT and a BTF-enabled kernel (CONFIG_DEBUG_INFO_BTF=y) OR matching
+ *   kernel headers. Most current distro kernels ship BTF; minimal/container kernels may
+ *   not — `bpftrace -l 'tracepoint:syscalls:sys_enter_execveat'` should list the probe.
+ * • Syscall *tracepoints* are stable across kernels (unlike kprobes), so we use them.
+ * • AT_EMPTY_PATH = 0x1000. We flag execveat calls carrying it — that is the fileless
+ *   tell (running a fd, not a path). MFD_EXEC/MFD_NOEXEC_SEAL on memfd_create govern
+ *   exec-ability on kernel 6.3+ (absent on 6.2); we print the raw flags so you can see it.
+ * • Inside a container, syscalls are visible on the HOST trace but pid/comm are the host
+ *   view of the namespaced process — correlate by pid, not by assuming host paths.
+ */
+
+BEGIN { printf("%-10s %-6s %-16s %s\n", "TIME(ms)", "PID", "COMM", "EVENT"); }
+
+tracepoint:syscalls:sys_enter_memfd_create
+{
+    printf("%-10u %-6d %-16s memfd_create name=%s flags=0x%x\n",
+           elapsed / 1000000, pid, comm, str(args->uname), args->flags);
+}
+
+tracepoint:syscalls:sys_enter_execveat
+{
+    /* AT_EMPTY_PATH (0x1000) => exec a file descriptor, not a path => fileless tell */
+    $anon = (args->flags & 0x1000) ? "<AT_EMPTY_PATH: fileless>" : str(args->filename);
+    printf("%-10u %-6d %-16s execveat fd=%d flags=0x%x path=%s\n",
+           elapsed / 1000000, pid, comm, args->fd, args->flags, $anon);
+}
