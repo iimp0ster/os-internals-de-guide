@@ -1,75 +1,89 @@
 # The Cross-OS Detection Graph
 
-**How one threat looks across Windows, Linux, and macOS telemetry — and where each one is blind.**
+**Start with a threat. See what it leaves behind on Windows, Linux, and macOS.**
 
-> Status: **pre-release / work in progress.** An early public cut — the v1 core
-> (Execution + Persistence + Privilege Escalation) is drafted; Defense Evasion and
-> beyond are stubs. See [`src/appendix/roadmap.md`](src/appendix/roadmap.md).
+[Read the guide](https://iimp0ster.github.io/os-internals-de-guide/)
 
-## The thesis
+> Status: public work in progress. The current release includes five threat walkthroughs
+> and reusable detection graphs for execution, persistence, privilege and access, and
+> one defense-evasion behavior.
 
-Every detection engineer is fluent in one OS's telemetry and needs the others. Existing
-material is OS-siloed and makes you start from zero, one OS at a time. This guide bridges
-from the one thing everyone already shares — **the threat** — and teaches all three OSes
-at once by showing how a single behavior casts a *different shadow* in each one's
-telemetry.
+## Start here
 
-The model, every chapter:
+Use the route that matches the evidence you have:
 
-- **The behavior is an invariant graph** — processes/files/sockets as nodes, exec/open/
-  connect/write as edges.
-- **The chokepoint is a cut in that graph** — the node/edge every variant must cross (an
-  articulation point). You can't obfuscate around a necessary edge; that's why it's the
-  detection anchor. ("Detection chokepoint" is a graph-theory term, not a metaphor.)
-- **Each OS is an overlay** — the same graph re-labeled with the sensor that observes each
-  edge, greyed where none can. A dark node *is* the blind spot.
-- **The divergence is the lesson** — the behavior does *not* look the same on every OS.
-  Mechanisms differ (macOS `osascript → AppleEvents` has no Win/Linux analog), and a node
-  visible on one OS is dark on another. Telemetry, not the threat, dictates what you detect.
+- **I have a threat hypothesis:** open a [threat walkthrough](src/threats/00-overview.md).
+- **I have telemetry but no hypothesis:** use the [detection graph library](src/detection-graphs.md).
+- **I am planning coverage:** use the [cross-OS coverage matrix](src/appendix/threat-coverage-matrix.md).
 
-It's universal by construction: the spine is the threat, so no OS is privileged and a
-Windows, Linux, or macOS expert can all anchor to their own and read the others against it.
-It stands on the single-OS prior art (Red Canary's Linux guide, Wardle's *Art of Mac
-Malware*, Elastic's Linux Detection Engineering series) and bridges it.
+The guide does not treat an empty OS column as safety. Each walkthrough labels a platform as
+Applicable, Constrained, No native analogue, Telemetry blind, or Unknown and explains why.
 
-## How each chapter is built
+## What is in the guide
 
-One **behavior** per chapter (technique-cluster grain), grounded in real threats,
-following a fixed 8-section template ([`templates/chapter.md`](templates/chapter.md)):
+### Threat walkthroughs
 
-1. the behavior & invariant → 2. threats that use it → 3. the behavioral graph & the cut →
-4. per-OS realization & telemetry overlay (the divergence) → 5. visibility delta →
-6. detect the cut (per-OS Sigma + the real captured event) → 7. reproduce (Atomic Red Team)
-→ 8. false positives & pitfalls.
+The walkthroughs put behavior in context before sending you to the lower-level graph:
 
-Methodology, lab build, capture loop, and citation standard:
-[`src/methodology.md`](src/methodology.md).
+| Threat | Starting point |
+|---|---|
+| ClickFix | Browser or clipboard social engineering that becomes native execution. |
+| Cryptomining | Workload abuse, persistence, and server or endpoint access paths. |
+| Ransomware | Impact paths across Windows endpoints, Linux or ESXi estates, and constrained macOS cases. |
+| Infostealers | Browser and credential access, including Linux server-secret collection. |
+| Linux passive backdoors | Hidden listeners and process-identity contradictions. |
+
+### Detection graph library
+
+The graph library is the reusable internals layer. It starts from the edge you can see:
+
+- **Execution:** interpreter activity, native loader behavior, and executable memory.
+- **Persistence:** service or daemon changes, scheduled work, login hooks, and web-shell lineage.
+- **Privilege and access:** elevation mechanisms, policy brokers, TCC, and privileged helpers.
+- **Defense evasion:** process-argument masquerading.
+
+Each graph identifies the behavior that must happen, the detection chokepoint, the matching
+telemetry on each OS, sensor limits, detection logic, and expected false positives.
+
+## What a walkthrough gives you
+
+- An OS-specific applicability decision with the reason behind it.
+- A short telemetry path from threat behavior to rule match.
+- The minimal data sources that can prove the behavior.
+- Defanged procedures or payload fragments where they explain what the rule is targeting.
+- Curated emulation event excerpts where the rule has been validated.
+
+The point is to make the comparison useful in an investigation. A Windows, Linux, or macOS
+specialist can begin with the OS they know, then see what changes on the others.
 
 ## Build locally
 
 ```sh
 cargo install mdbook mdbook-mermaid mdbook-admonish mdbook-linkcheck
-mdbook-mermaid install .      # one-time: copies theme/mermaid* assets
-mdbook-admonish install .     # one-time: copies theme/mdbook-admonish.css
+mdbook-mermaid install .      # one-time: copies theme and Mermaid assets
+mdbook-admonish install .     # one-time: copies admonish assets
 mdbook serve --open           # live preview at http://localhost:3000
 ```
 
-CI (`.github/workflows/deploy.yml`) builds on every push, fails on broken internal links,
-and deploys to GitHub Pages from `main`. Mermaid renders server-side via `mdbook-mermaid`.
+GitHub Actions builds each pull request and deploys the book to GitHub Pages from `main`.
 
 ## Repository layout
 
 ```
-src/                 # the book
-  introduction.md    # the model
-  methodology.md     # lab, capture loop, citation standard
-  execution/         # Part I (Slice 0 lives here)
-  appendix/          # telemetry cheat-sheet, source canon, roadmap
-templates/chapter.md # the 8-section skeleton
-labs/                # sensor configs (auditd rules, bpftrace, sysmon, eslogger)
+src/
+  start-here.md             # defender-first entry routes
+  threats/                  # threat walkthroughs and OS applicability decisions
+  detection-graphs.md       # signal-first graph index
+  execution/                # reusable execution graphs
+  persistence/              # reusable persistence graphs
+  privilege-escalation/     # reusable privilege and access graphs
+  defense-evasion/          # reusable defense-evasion graphs
+  appendix/                 # coverage matrix, cheatsheets, and source canon
+templates/chapter.md        # detection graph skeleton
+labs/                       # sensor configurations and lab material
 ```
 
 ## License
 
-TBD at public launch. Intended: prose under Creative Commons; detection rules / lab
+TBD at public launch. Intended: prose under Creative Commons; detection rules and lab
 configs under a permissive code license (MIT or Apache-2.0). Until then, all rights reserved.
