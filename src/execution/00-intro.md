@@ -1,9 +1,10 @@
-# Part I · Execution
+# Execution graphs
 
-Execution is where the guide starts, on purpose. It is the tactic that drags the OS
-*foundations* in with it — to talk about how code runs, you have to talk about the
-process model and the binary format — so the chapters here double as the primer the rest
-of the book builds on.
+Execution is a foundational graph family. Threat walkthroughs link here when their telemetry
+story crosses code execution: the process model and binary format explain which event the
+defender can actually observe.
+
+<div class="graph-route" role="note"><strong>THREAT ROUTES</strong><br><span>Return to the outcome: <a href="../threats/05-clickfix.md">ClickFix</a> · <a href="../threats/01-cryptomining.md">Cryptomining</a> · <a href="../threats/03-infostealers.md">Infostealers</a> · <a href="../threats/02-ransomware.md">Ransomware</a>.</span></div>
 
 ## The one diagram to hold in your head
 
@@ -26,7 +27,7 @@ Windows creates a process and loads an image in one call. Unix **splits it**: `f
 duplicates the calling process, then `execve()` replaces that duplicate's memory with a
 new program; macOS adds `posix_spawn()` (a single-call fork+exec used heavily by
 `launchd`). This split is why Unix telemetry distinguishes *fork* events from *exec*
-events — and why a fork with no following exec (a server pre-forking workers, or a process
+events, and why a fork with no following exec (a server pre-forking workers, or a process
 hollowing itself) is its own signal that has no direct Windows equivalent.
 
 ## Chapters
@@ -39,4 +40,4 @@ hollowing itself) is its own signal that has no direct Windows equivalent.
 
 The invariant that ties the part together: **code execution is an `exec`-family event**,
 and the attacker's job is to make that event look ordinary. The defender's job is to know
-which sensor tier — on which OS — still sees through it.
+which sensor tier, on which OS, still sees through it.

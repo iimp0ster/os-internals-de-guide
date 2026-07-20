@@ -1,0 +1,103 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <meta name="theme-color" content="#0b0d10">
+  <title>The Cross-OS Detection Graph</title>
+  <link rel="icon" href="favicon.svg" type="image/svg+xml">
+  <style>
+    @font-face { font-family: Pixel; src: url("fonts/press-start-2p.woff2") format("woff2"); font-display: swap; }
+    @font-face { font-family: Terminal; src: url("fonts/vt323.woff2") format("woff2"); font-display: swap; }
+    @font-face { font-family: Mono; src: url("fonts/jetbrains-mono-400.woff2") format("woff2"); font-display: swap; }
+    * { box-sizing: border-box; }
+    :root { --bg:#0b0d10; --panel:#10141a; --panel-2:#151a22; --line:#303946; --text:#d9dfe7; --muted:#8b949e; --orange:#f0883e; --yellow:#ffd23a; --lime:#b6df5a; --cyan:#80d4ed; }
+    body { background:var(--bg); color:var(--text); font-family:Mono,monospace; margin:0; min-width:320px; }
+    body::after { background:repeating-linear-gradient(to bottom,transparent 0 2px,rgb(0 0 0 / .08) 3px); content:""; inset:0; pointer-events:none; position:fixed; z-index:5; }
+    a { color:inherit; text-decoration:none; }
+    .shell { margin:0 auto; max-width:1240px; padding:24px clamp(18px,4vw,54px) 64px; position:relative; }
+    .topbar { align-items:center; border-bottom:1px solid var(--line); display:flex; gap:20px; justify-content:space-between; padding:0 0 18px; }
+    .brand { align-items:center; display:flex; font-family:Pixel,monospace; font-size:clamp(.56rem,1.4vw,.78rem); line-height:1.65; }
+    .brand-mark { background:var(--orange); box-shadow:4px 4px 0 #40200e; color:var(--bg); font-family:Pixel; font-size:.7rem; line-height:36px; margin-right:13px; text-align:center; width:36px; }
+    .nav { display:flex; flex-wrap:wrap; gap:14px; justify-content:flex-end; }
+    .nav a { color:var(--muted); font-family:Terminal,monospace; font-size:1.45rem; }
+    .nav a:first-child { color:var(--orange); }
+    .status { color:var(--lime); font-family:Terminal,monospace; font-size:1.3rem; }
+    .hero { display:grid; gap:38px; grid-template-columns:minmax(0,1.35fr) minmax(300px,.65fr); padding:clamp(48px,8vw,100px) 0 62px; }
+    .eyebrow { color:var(--lime); font-family:Pixel,monospace; font-size:.52rem; letter-spacing:.06em; line-height:1.8; margin:0 0 18px; }
+    h1 { color:var(--orange); font-family:Pixel,monospace; font-size:clamp(1.55rem,4.5vw,3.2rem); line-height:1.5; margin:0; max-width:760px; text-shadow:0 3px 0 #3a1c08,0 0 24px rgb(240 136 62 / .25); }
+    .cursor { color:var(--yellow); }
+    .lede { color:#bdc7d2; font-family:Terminal,monospace; font-size:clamp(1.6rem,2.2vw,2rem); line-height:1.1; margin:26px 0 0; max-width:680px; }
+    .hero-actions { display:flex; flex-wrap:wrap; gap:12px; margin-top:28px; }
+    .button { border:2px solid var(--orange); box-shadow:4px 4px 0 #06070a; color:var(--orange); font-family:Pixel,monospace; font-size:.48rem; line-height:1.4; padding:14px 16px; }
+    .button.primary { background:var(--orange); color:var(--bg); }
+    .system-card { align-self:center; background:var(--panel); border:1px solid var(--line); box-shadow:7px 7px 0 #06070a; padding:21px; }
+    .system-card-header { align-items:center; display:flex; gap:12px; justify-content:space-between; }
+    .system-card h2,.section-title { color:var(--yellow); font-family:Pixel,monospace; font-size:.62rem; font-weight:400; line-height:1.7; margin:0; }
+    .route-tag { color:var(--muted); font-family:Pixel,monospace; font-size:.36rem; line-height:1.5; text-align:right; }.route-tag b { color:var(--lime); font-weight:400; }
+    .flow { display:grid; gap:10px; margin-top:19px; position:relative; }
+    .flow::before { background:repeating-linear-gradient(to bottom,var(--line) 0 5px,transparent 5px 9px); content:""; left:20px; position:absolute; top:42px; bottom:42px; width:2px; }
+    .flow-step { align-items:center; display:grid; gap:13px; grid-template-columns:42px minmax(0,1fr); min-height:68px; position:relative; z-index:1; }
+    .node { align-items:center; background:var(--panel-2); border:2px solid var(--orange); box-shadow:3px 3px 0 #06070a; color:var(--orange); display:flex; font-family:Pixel; font-size:.55rem; height:42px; justify-content:center; width:42px; }
+    .node.lime { border-color:var(--lime); color:var(--lime); }.node.cyan { border-color:var(--cyan); color:var(--cyan); }
+    .flow-label { background:#0d1117; border:1px solid var(--line); border-left:3px solid var(--orange); min-width:0; padding:8px 10px; }.flow-step:nth-child(2) .flow-label { border-left-color:var(--lime); }.flow-step:nth-child(3) .flow-label { border-left-color:var(--cyan); }
+    .flow-label b { display:block; font-family:Terminal; font-size:1.65rem; font-weight:400; line-height:.95; }.flow-label span { color:var(--muted); display:block; font-size:.72rem; line-height:1.3; margin-top:4px; }
+    .grid-title { align-items:center; display:flex; gap:16px; margin-bottom:20px; }.grid-title::after { background:var(--line); content:""; height:1px; flex:1; }
+    .os-grid { display:grid; gap:15px; grid-template-columns:repeat(3,1fr); }
+    .os-card { background:var(--panel); border:1px solid var(--line); box-shadow:4px 4px 0 #06070a; display:block; min-height:194px; overflow:hidden; padding:17px; position:relative; }
+    .os-card:hover { border-color:var(--orange); transform:translate(-1px,-1px); }.os-card img { height:65px; image-rendering:pixelated; object-fit:contain; object-position:left center; width:75px; }.os-card h3 { color:var(--text); font-family:Terminal; font-size:1.8rem; font-weight:400; margin:13px 0 4px; }.os-card p { color:var(--muted); font-size:.72rem; line-height:1.45; margin:0; }.os-card .route { bottom:14px; color:var(--lime); font-family:Pixel; font-size:.38rem; position:absolute; }
+    .threat-area { margin-top:64px; }.threat-grid { display:grid; gap:12px; grid-template-columns:repeat(5,1fr); margin-top:20px; }
+    .threat-card { background:var(--panel); border:1px solid var(--line); min-height:164px; padding:13px; position:relative; }.threat-card img { height:48px; image-rendering:pixelated; object-fit:contain; width:52px; }.threat-card h3 { font-family:Terminal; font-size:1.55rem; font-weight:400; line-height:.95; margin:8px 0 5px; }.threat-card p { color:var(--muted); font-size:.66rem; line-height:1.35; margin:0; }.threat-card a { bottom:11px; color:var(--orange); font-family:Pixel; font-size:.35rem; position:absolute; }
+    .footer { border-top:1px solid var(--line); color:var(--muted); display:flex; font-size:.72rem; gap:16px; justify-content:space-between; margin-top:62px; padding-top:18px; }.footer strong { color:var(--lime); font-family:Pixel; font-size:.42rem; }
+    @media (max-width:780px) { .topbar { align-items:flex-start; flex-direction:column; }.nav { justify-content:flex-start; }.hero { grid-template-columns:1fr; padding-top:58px; }.os-grid { grid-template-columns:1fr; }.os-card { min-height:160px; }.threat-grid { grid-template-columns:repeat(2,1fr); }.footer { flex-direction:column; }.status { display:none; } }
+  </style>
+</head>
+<body>
+  <main class="shell">
+    <header class="topbar">
+      <a class="brand" href="introduction.html"><span class="brand-mark">+</span>THE CROSS-OS<br>DETECTION GRAPH</a>
+      <nav class="nav" aria-label="Preview navigation"><a href="start-here.html">START HERE</a><a href="threats/index.html">THREAT WALKTHROUGHS</a><a href="detection-graphs.html">GRAPH LIBRARY</a></nav>
+      <span class="status">● READY</span>
+    </header>
+
+    <section class="hero">
+      <div>
+        <p class="eyebrow">DEFENDER SYSTEM / PREVIEW</p>
+        <h1>START WITH A THREAT.<br>LAND ON THE<br>TELEMETRY<span class="cursor">_</span></h1>
+        <p class="lede">A cross-OS guide for turning real attacker behavior into the smallest useful set of events and rules.</p>
+        <div class="hero-actions"><a class="button primary" href="start-here.html">CHOOSE YOUR OS</a><a class="button" href="threats/index.html">BROWSE THREATS</a></div>
+      </div>
+      <aside class="system-card" aria-label="Detection path">
+        <div class="system-card-header"><h2>SYSTEM PATH</h2><span class="route-tag">ROUTE <b>ONLINE</b></span></div>
+        <div class="flow">
+          <div class="flow-step"><span class="node">01</span><div class="flow-label"><b>Threat behavior</b><span>Start with what the actor did.</span></div></div>
+          <div class="flow-step"><span class="node lime">02</span><div class="flow-label"><b>Event signal</b><span>Find the smallest telemetry cut that proves it.</span></div></div>
+          <div class="flow-step"><span class="node cyan">03</span><div class="flow-label"><b>Rule match</b><span>Validate the behavior against a usable detection.</span></div></div>
+        </div>
+      </aside>
+    </section>
+
+    <section>
+      <div class="grid-title"><h2 class="section-title">SELECT YOUR OS</h2></div>
+      <div class="os-grid">
+        <a class="os-card" href="threats/05-clickfix.html#windows"><img src="assets/os/windows-pixel-panes.png" alt="Pixel art Windows logo"><h3>Windows</h3><p>ClickFix<br>browser to shell</p><span class="route">PLAY ROUTE →</span></a>
+        <a class="os-card" href="threats/01-cryptomining.html#linux"><img src="assets/os/linux-pixel-penguin.png" alt="Pixel art Linux penguin"><h3>Linux</h3><p>Cryptomining<br>server to persistence</p><span class="route">PLAY ROUTE →</span></a>
+        <a class="os-card" href="threats/03-infostealers.html#macos"><img src="assets/os/macos-pixel-apple.png" alt="Pixel art macOS apple"><h3>macOS</h3><p>Infostealers<br>browser to secrets</p><span class="route">PLAY ROUTE →</span></a>
+      </div>
+    </section>
+
+    <section class="threat-area">
+      <div class="grid-title"><h2 class="section-title">PICK A THREAT</h2></div>
+      <div class="threat-grid">
+        <article class="threat-card"><img src="assets/threats/clickfix-pixel.png" alt="Pixel art ClickFix icon"><h3>ClickFix</h3><p>Paste-driven execution</p><a href="threats/05-clickfix.html">OPEN →</a></article>
+        <article class="threat-card"><img src="assets/threats/cryptomining-pixel.png" alt="Pixel art cryptomining icon"><h3>Mining</h3><p>Compute abuse</p><a href="threats/01-cryptomining.html">OPEN →</a></article>
+        <article class="threat-card"><img src="assets/threats/ransomware-pixel.png" alt="Pixel art ransomware icon"><h3>Ransomware</h3><p>Impact and recovery</p><a href="threats/02-ransomware.html">OPEN →</a></article>
+        <article class="threat-card"><img src="assets/threats/infostealers-pixel.png" alt="Pixel art infostealer icon"><h3>Stealers</h3><p>Browser and secrets</p><a href="threats/03-infostealers.html">OPEN →</a></article>
+        <article class="threat-card"><img src="assets/threats/linux-passive-backdoors-pixel.png" alt="Pixel art passive backdoor icon"><h3>Backdoors</h3><p>Quiet Linux access</p><a href="threats/04-linux-passive-backdoors.html">OPEN →</a></article>
+      </div>
+    </section>
+
+    <footer class="footer"><strong>THREAT → EVENT → DETECTION</strong><span>Static preview page for The Cross-OS Detection Graph</span></footer>
+  </main>
+</body>
+</html>
