@@ -67,6 +67,7 @@
 # Appendix
 
 - [Telemetry cheat-sheet (Win ↔ Linux ↔ macOS)](appendix/telemetry-cheatsheet.md)
+- [macOS ESF capture lab](appendix/macos-esf-capture-lab.md)
 - [Process lineage (Linux)](appendix/process-lineage.md)
 - [Cross-OS threat coverage matrix](appendix/threat-coverage-matrix.md)
 - [Safeguard pressure: why a TTP lands here, not there](appendix/safeguard-pressure.md)

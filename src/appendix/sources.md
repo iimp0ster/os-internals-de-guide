@@ -2,7 +2,7 @@
 
 This guide is **empirical-first**: the captured event plus primary documentation are
 ground truth; books anchor learning and are cited as "go deeper." Every source below
-was verified to exist as of **June 2026** (the as-of date matters, infrastructure and
+was verified to exist as of **July 2026** (the as-of date matters, infrastructure and
 tooling are time-sensitive).
 
 ```admonish warning title="Currency caveat"
@@ -22,6 +22,7 @@ in-chapter until confirmed against the live system.
 | Wardle, *The Art of Mac Malware* Vol 2 (Detection) | ESF-based detection | **free** · taomm.org · also No Starch (2025) | **Ch 8 = Endpoint Security Framework**, Ch 9 = muting/authorization. Primary ESF detection reference. |
 | Csaba Fitzl (theevilbit), *Beyond the good ol' LaunchAgents* | 30+ macOS persistence techniques | free · theevilbit.github.io/beyond | Dominant macOS persistence catalog. |
 | Apple Developer, EndpointSecurity framework | ESF event types, structs | free · developer.apple.com | Primary source for ES_EVENT_TYPE_* schemas. |
+| Enleak, [*Where Does macOS EDR Telemetry Come From?*](https://enleak.dev/writing/where-does-macos-telemetry-come-from) | ESF architecture, Mac Monitor capture, process-lineage lab | free · enleak.dev | Live capture performed on Apple hardware, July 2026. |
 | Apple Developer, Unified Logging (os_log) | `log stream` / `log show`, predicates | free · developer.apple.com | |
 | Objective-See | free macOS security tools + research | free · objective-see.org | OverSight, KnockKnock, etc. |
 | Olivia Gallucci, *macOS Internals for Detection Engineers* | launchd, FSEvents, Gatekeeper, code signing | free · oliviagallucci.com | Single-OS prior art, cite + bridge. |
@@ -47,7 +48,7 @@ in-chapter until confirmed against the live system.
 | SigmaHQ rules (`rules/linux`, `rules/macos`) | existing detections to reference | free · github.com/SigmaHQ/sigma |
 | Atomic Red Team | reproducible behavior tests | free · atomicredteam.io |
 
-## Capture tooling (verified current, June 2026)
+## Capture tooling (verified current, July 2026)
 
 - **macOS:** `eslogger` (built-in since macOS 13 Ventura; streams ESF as JSON) ·
   [Red Canary Mac Monitor](https://github.com/Brandon7CC/mac-monitor) (free GUI, Homebrew) ·
