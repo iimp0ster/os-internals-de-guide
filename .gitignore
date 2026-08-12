@@ -44,5 +44,10 @@ labs/*/README-captures.md
 /requirements.txt
 /book.toml.preview-bak
 
+# GSD planning is local-only. It may include exploratory notes, research, and
+# environment-specific context that should never be published with the book.
+/.planning/
+/AGENTS.md
+
 # Project changelog holds internal authoring/tooling notes — not published
 /CHANGELOG.md
