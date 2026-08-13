@@ -34,6 +34,9 @@ behavior against the operating system and sensor you actually run.
 - [Endpoint Security](https://developer.apple.com/documentation/endpointsecurity) and
   [Network Extension](https://developer.apple.com/documentation/networkextension) — primary API
   references for the supported observation and enforcement surfaces.
+- [Enleak, *Where Does macOS EDR Telemetry Come From?*](https://enleak.dev/writing/where-does-macos-telemetry-come-from)
+  — a credited, live-capture walkthrough that complements this guide's
+  [macOS ESF capture lab](macos-esf-capture-lab.md).
 - [The Art of Mac Malware](https://taomm.org/) — Patrick Wardle's free, practitioner-oriented
   analysis and detection material.
 - [Objective-See](https://objective-see.org/) — research and tools that make macOS persistence,
