@@ -47,11 +47,11 @@ jobs:
           # Keep local preview dependency-light while making broken internal links a CI failure.
           cat >> book.toml <<'EOF'
 
-[output.linkcheck]
-follow-web-links = false
-warning-policy = "error"
-exclude = []
-EOF
+          [output.linkcheck]
+          follow-web-links = false
+          warning-policy = "error"
+          exclude = []
+          EOF
           mdbook build
       - name: Use the project preview as the homepage
         run: cp book/project-preview.html book/index.html
