@@ -1,59 +1,59 @@
-# Source canon
+# Further reading & references
 
-This guide is **empirical-first**: the captured event plus primary documentation are
-ground truth; books anchor learning and are cited as "go deeper." Every source below
-was verified to exist as of **June 2026** (the as-of date matters, infrastructure and
-tooling are time-sensitive).
+This is a curated reading list for practitioners who want to go deeper. It is not the authority
+for a specific claim in the book: use the citation beside that claim and confirm version-sensitive
+behavior against the operating system and sensor you actually run.
 
-```admonish warning title="Currency caveat"
-The canonical *books* are old (2010-2019). For current kernel and telemetry behavior,
-prefer primary docs + your own captures + the actively-maintained blog series. Any
-book-sourced *specific* (a version, flag, path, or struct field) is marked `unverified:`
-in-chapter until confirmed against the live system.
-```
+## Windows
 
-## macOS
-
-| Source | Scope | Access | Notes |
-|---|---|---|---|
-| Jonathan Levin, *macOS and iOS Internals* Vol I (User Mode) | launchd, XPC, process/thread, frameworks | paid · newosxbook.com | The user-mode bible. |
-| Levin, Vol III (Security & Insecurity) | code signing, SIP, AMFI, sandbox, MAC, auditing | paid · newosxbook.com | The detection-relevant volume. |
-| Patrick Wardle, *The Art of Mac Malware* Vol 1 (Analysis) | macOS malware analysis | **free** · taomm.org | |
-| Wardle, *The Art of Mac Malware* Vol 2 (Detection) | ESF-based detection | **free** · taomm.org · also No Starch (2025) | **Ch 8 = Endpoint Security Framework**, Ch 9 = muting/authorization. Primary ESF detection reference. |
-| Csaba Fitzl (theevilbit), *Beyond the good ol' LaunchAgents* | 30+ macOS persistence techniques | free · theevilbit.github.io/beyond | Dominant macOS persistence catalog. |
-| Apple Developer, EndpointSecurity framework | ESF event types, structs | free · developer.apple.com | Primary source for ES_EVENT_TYPE_* schemas. |
-| Apple Developer, Unified Logging (os_log) | `log stream` / `log show`, predicates | free · developer.apple.com | |
-| Objective-See | free macOS security tools + research | free · objective-see.org | OverSight, KnockKnock, etc. |
-| Olivia Gallucci, *macOS Internals for Detection Engineers* | launchd, FSEvents, Gatekeeper, code signing | free · oliviagallucci.com | Single-OS prior art, cite + bridge. |
+- [Windows Internals](https://learn.microsoft.com/en-us/sysinternals/resources/windows-internals) —
+  the broadest grounding in processes, memory, I/O, and the Windows security model.
+- [Sysmon](https://learn.microsoft.com/en-us/sysinternals/downloads/sysmon) and its
+  [event reference](https://learn.microsoft.com/en-us/windows/security/operating-system-security/sysmon/sysmon-events)
+  — how a common Windows telemetry layer is configured and what its events represent.
+- [Windows Filtering Platform](https://learn.microsoft.com/en-us/windows/win32/fwp/windows-filtering-platform-start-page)
+  — the native network-filtering and enforcement architecture behind many connection-level
+  discussions.
 
 ## Linux
 
-| Source | Scope | Access | Notes |
-|---|---|---|---|
-| Michael Kerrisk, *The Linux Programming Interface* (TLPI) | syscalls, process model, userspace | paid · man7.org/tlpi | 1st ed (2010); still authoritative. |
-| Robert Love, *Linux Kernel Development* (3rd ed) | scheduler, mm, process mgmt | paid | Dated to kernel 2.6.34, **conceptual only**; verify specifics vs kernel.org. |
-| Brendan Gregg, *BPF Performance Tools* (2019) | eBPF tooling, tracing | paid · brendangregg.com | The eBPF reference; site has free tools. |
-| Elastic Security Labs, *Linux Detection Engineering* series (Ruben Groenewoud) | persistence (6 parts), rootkits, containers | free · elastic.co/security-labs | **Dominant Linux persistence prior art.** Cite, do not reproduce. |
-| Red Canary, *Detection Engineer's Guide to Linux* | Linux DE methodology, ELF vs PE | free · redcanary.com | Closest existing comparative-to-Windows work (Linux-only). |
-| ebpf.io / Cilium Tetragon / Falco docs | eBPF runtime telemetry | free | Current substrate documentation. |
-| `auditd` / `audit.rules` man pages, `man7.org` | syscall auditing | free | Primary for auditd record formats. |
+- [Linux man-pages](https://man7.org/linux/man-pages/) — the first stop for syscall and ABI
+  semantics, including `execve`, `openat`, `connect`, `ptrace`, and audit rules.
+- [The Linux Programming Interface](https://www.man7.org/tlpi/index.html) — a durable guide to
+  the process, file, IPC, and syscall model. Use kernel documentation for version-specific facts.
+- [Linux kernel documentation](https://www.kernel.org/doc/html/latest/) and
+  [ebpf.io](https://ebpf.io/what-is-ebpf/) — primary context for kernel trace events, VFS, LSM,
+  and eBPF.
+- [Cilium Tetragon](https://tetragon.io/docs/) and [Falco](https://falco.org/docs/) — practical
+  examples of how runtime-security products express Linux behavior.
 
-## Cross-platform / detection
+## macOS
 
-| Source | Scope | Access |
-|---|---|---|
-| MITRE ATT&CK, [macOS matrix](https://attack.mitre.org/matrices/enterprise/macos/), [Linux matrix](https://attack.mitre.org/matrices/enterprise/linux/) | technique taxonomy, data sources | free |
-| Red Canary Threat Detection Report (Linux/macOS sections) | prevalence, top techniques | free |
-| SigmaHQ rules (`rules/linux`, `rules/macos`) | existing detections to reference | free · github.com/SigmaHQ/sigma |
-| Atomic Red Team | reproducible behavior tests | free · atomicredteam.io |
+- [Apple Platform Security](https://support.apple.com/guide/security/welcome/web) — the best
+  starting point for macOS trust boundaries, signing, Gatekeeper, SIP, and TCC.
+- [Endpoint Security](https://developer.apple.com/documentation/endpointsecurity) and
+  [Network Extension](https://developer.apple.com/documentation/networkextension) — primary API
+  references for the supported observation and enforcement surfaces.
+- [The Art of Mac Malware](https://taomm.org/) — Patrick Wardle's free, practitioner-oriented
+  analysis and detection material.
+- [Objective-See](https://objective-see.org/) — research and tools that make macOS persistence,
+  execution, and userland telemetry more tangible.
 
-## Capture tooling (verified current, June 2026)
+## Cross-OS detection practice
 
-- **macOS:** `eslogger` (built-in since macOS 13 Ventura; streams ESF as JSON) ·
-  [Red Canary Mac Monitor](https://github.com/Brandon7CC/mac-monitor) (free GUI, Homebrew) ·
-  [Crescendo](https://github.com/SuprHackerSteve/Crescendo) (ESF event viewer) ·
-  `log stream` / `log show` (unified log, secondary).
-- **Linux:** `bpftrace` · [Cilium Tetragon](https://tetragon.io) (CNCF, production) ·
-  [Falco](https://falco.org) (CNCF, modern eBPF default) ·
-  [Sysmon for Linux](https://github.com/microsoft/SysmonForLinux) (Windows-EventID-shaped, eBPF-backed) ·
-  `auditd` + `journald` · `fanotify`.
+- [MITRE ATT&CK Enterprise matrices](https://attack.mitre.org/matrices/enterprise/) — common
+  technique vocabulary; use the Windows, Linux, and macOS views to compare platform coverage.
+- [SigmaHQ](https://github.com/SigmaHQ/sigma) — portable detection logic and examples of where
+  portability stops at the collector/schema boundary.
+- [Atomic Red Team](https://github.com/redcanaryco/atomic-red-team) — safe, bounded behavior
+  emulation for validating a detection in an authorized lab.
+- [Red Canary Threat Detection Report](https://redcanary.com/threat-detection-report/) — useful
+  for current practitioner context and telemetry trends; treat prevalence as time-bound.
+
+## A practical reading order
+
+1. Read the relevant Foundation page in this guide and follow its primary citations.
+2. Use the OS-native references above to understand the local object, API, syscall, or control.
+3. Read the product documentation for the sensor you actually deploy.
+4. Use ATT&CK, Sigma, and authorized lab validation to turn the concept into a defensible
+   detection—not just a familiar-looking event name.

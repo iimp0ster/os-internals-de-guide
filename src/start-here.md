@@ -1,9 +1,9 @@
-# Start here: begin with a threat
+# Start here: choose your route
 
 <div class="os-select-intro">
   <span>PLAYER SELECT</span>
   <h2>Choose your OS telemetry lane</h2>
-  <p>Pick the OS you can observe. Each choice opens a fitting threat route and its first useful telemetry story.</p>
+  <p>Pick the OS you know or can observe. Each choice opens a fitting threat route and its first useful telemetry story.</p>
 </div>
 
 <div class="os-sprite-deck" role="group" aria-label="Cross-OS threat routes">
@@ -31,6 +31,14 @@ leave behind on this OS?** ATT&CK and internals are the supporting library. Use 
 you already know the behavior you need to investigate.
 
 ## Choose your starting route
+
+### I know one OS and need the closest detection analogue on another
+
+Use the [translation contract](foundations/00-translation-contract.md). Start from a Windows,
+Linux, or macOS observation you already understand, name the behavior it proves, then test the
+native boundary and collection gate on the OS you need to investigate. An equivalent event name
+is not required; **partial analogue**, **no direct equivalent**, and **Telemetry blind** are all
+useful conclusions.
 
 ### I have a threat hypothesis
 

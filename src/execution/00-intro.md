@@ -6,29 +6,16 @@ defender can actually observe.
 
 <div class="graph-route" role="note"><strong>THREAT ROUTES</strong><br><span>Return to the outcome: <a href="../threats/05-clickfix.md">ClickFix</a> · <a href="../threats/01-cryptomining.md">Cryptomining</a> · <a href="../threats/03-infostealers.md">Infostealers</a> · <a href="../threats/02-ransomware.md">Ransomware</a>.</span></div>
 
-## The one diagram to hold in your head
+## Native paths, not one universal execution event
 
-The process-creation models genuinely diverge across the three OSes, and that divergence
-shapes every execution graph that follows:
-
-```mermaid
-flowchart TB
-    subgraph Windows
-      W1["CreateProcess()"] --> W2["new process (image loaded directly)"]
-    end
-    subgraph "Linux / macOS (Unix model)"
-      U1["fork() / posix_spawn()"] --> U2["child = copy of parent"]
-      U2 --> U3["execve() / execveat()"]
-      U3 --> U4["image replaces process memory"]
-    end
-```
-
-Windows creates a process and loads an image in one call. Unix **splits it**: `fork()`
-duplicates the calling process, then `execve()` replaces that duplicate's memory with a
-new program; macOS adds `posix_spawn()` (a single-call fork+exec used heavily by
-`launchd`). This split is why Unix telemetry distinguishes *fork* events from *exec*
-events, and why a fork with no following exec (a server pre-forking workers, or a process
-hollowing itself) is its own signal that has no direct Windows equivalent.
+Start with the platform-native boundary. On **Windows**, a [CreateProcess request](https://learn.microsoft.com/en-us/windows/win32/api/processthreadsapi/nf-processthreadsapi-createprocessa)
+creates the process and primary thread, while configured process-start and later image observations
+are separate evidence. On **Linux**, [`execve`](https://man7.org/linux/man-pages/man2/execve.2.html) or [`execveat`](https://man7.org/linux/man-pages/man2/execveat.2.html) can replace a calling process image
+after a successful call; `fork` is one possible predecessor, not a required sequence. On **macOS**,
+[`posix_spawn`](https://developer.apple.com/library/archive/documentation/System/Conceptual/ManPages_iPhoneOS/man2/posix_spawn.2.html) or an exec path can start the native image, while [Endpoint Security](https://developer.apple.com/documentation/endpointsecurity/monitoring-system-events-with-endpoint-security) distinguishes a
+[pre-action authorization request](https://developer.apple.com/documentation/endpointsecurity/es_event_type_auth_exec) from a [post-action notification](https://developer.apple.com/documentation/endpointsecurity/es_event_type_notify_exec) where an approved, entitled,
+subscribed client is available. Read [Process & loader behavior](../foundations/02-process-and-loader-behavior.md)
+before treating any of those records as proof beyond its documented boundary.
 
 ## Chapters
 
@@ -38,6 +25,7 @@ hollowing itself) is its own signal that has no direct Windows equivalent.
 | [Native execution & the loader](02-native-exec-loader.md) | run a compiled binary; the dynamic loader | LOLBins, loader-hijack via `LD_PRELOAD`/`DYLD_INSERT_LIBRARIES` |
 | [In-memory / fileless execution](03-in-memory-exec.md) | execute without an on-disk image | reflective loaders, `memfd_create` exec, injection |
 
-The invariant that ties the part together: **code execution is an `exec`-family event**,
-and the attacker's job is to make that event look ordinary. The defender's job is to know
-which sensor tier, on which OS, still sees through it.
+The invariant that ties the part together: every **native execution path** is bounded evidence.
+A request, authorization decision, process/image observation, or later loader record each answers a
+different question; the defender must name the sensor and the missing corroboration before forming a
+behavior conclusion.

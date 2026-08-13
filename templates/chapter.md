@@ -1,15 +1,17 @@
 <!--
-CHAPTER TEMPLATE — threat-anchored, graph-represented, divergence-aware.
-Copy into src/<part>/<nn>-<slug>.md. One chapter == ONE behavior (technique-cluster
-grain), taught through concrete threats and a behavioral graph.
+DETECTION GRAPH TEMPLATE, threat-anchored, graph-represented, divergence-aware.
+Copy into the appropriate `src/<graph-family>/` directory. One graph chapter == ONE
+behavior (technique-cluster grain), taught through concrete threats and a behavioral graph.
+Threat walkthroughs are the primary reading path; link this graph from every walkthrough that uses
+its cut rather than duplicating its technical internals.
 
 Core model:
   - The BEHAVIOR is the invariant. Draw it once as an OS-neutral graph.
-  - The CHOKEPOINT is the cut in that graph — the node/edge every variant must cross.
+  - The CHOKEPOINT is the cut in that graph, the node/edge every variant must cross.
   - Each OS is a REALIZATION + a telemetry OVERLAY. These DIVERGE: the same threat does
     not look the same on every OS (different mechanisms = different graph shape; different
     sensors = different visibility). Show the divergence; it is the lesson, not a footnote.
-  - A node/edge no sensor on that OS can populate is a BLIND SPOT — render it greyed.
+  - A node/edge no sensor on that OS can populate is a BLIND SPOT, render it greyed.
 
 Definition of Done is in methodology.md. Mermaid renders server-side via mdbook-mermaid,
 so multi-diagram pages are fine. Keep classDef values space-free (e.g. stroke-dasharray:4).
@@ -24,7 +26,7 @@ so multi-diagram pages are fine. Keep classDef values space-free (e.g. stroke-da
 ## 1. The behavior & invariant
 
 <!-- OS-neutral. What is achieved and why some step is unavoidable. State the invariant
-     in one sentence — the thing that holds no matter the OS or the obfuscation. -->
+     in one sentence, the thing that holds no matter the OS or the obfuscation. -->
 
 ## 2. Threats that use it
 
@@ -36,12 +38,12 @@ so multi-diagram pages are fine. Keep classDef values space-free (e.g. stroke-da
 
 <!-- The OS-neutral behavioral graph (mermaid). Identify the chokepoint as the CUT:
      the articulation point / min-cut every variant must traverse. Explain why it's
-     necessary (graph-theory framing) — that necessity is why it's the detection anchor. -->
+     necessary (graph-theory framing), that necessity is why it's the detection anchor. -->
 
 ## 4. Per-OS realization & telemetry overlay
 
 <!-- THE HEART OF THE CHAPTER. For each OS: the mechanism (note where the graph SHAPE
-     diverges from the others — extra nodes, missing nodes, different edges), the overlay
+     diverges from the others, extra nodes, missing nodes, different edges), the overlay
      with sensor labels, and the blind spots (greyed nodes/edges). Make the divergence
      explicit: "on macOS this branch exists and has no Windows/Linux analog", "this node
      is observable here but dark there."
@@ -58,7 +60,7 @@ so multi-diagram pages are fine. Keep classDef values space-free (e.g. stroke-da
 ## 5. Visibility delta
 
 <!-- Symmetric table: rows = graph elements, columns = OS / sensor tier (EDR vs SIEM).
-     The deliverable is the named blind spot — what the EDR tier sees that the SIEM tier
+     The deliverable is the named blind spot, what the EDR tier sees that the SIEM tier
      misses, and which OS is blind to which element. -->
 
 ## 6. Detect the cut

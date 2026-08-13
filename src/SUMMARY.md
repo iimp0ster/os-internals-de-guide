@@ -1,8 +1,15 @@
 # Summary
 
 [Introduction](introduction.md)
-[Start here: begin with a threat](start-here.md)
+[Start here: choose your route](start-here.md)
 [Methodology](methodology.md)
+
+# Foundations
+
+- [Translation contract](foundations/00-translation-contract.md)
+- [Filesystem & staging](foundations/01-filesystem-and-staging.md)
+- [Process & loader behavior](foundations/02-process-and-loader-behavior.md)
+- [Network & connection behavior](foundations/03-network-and-connection-behavior.md)
 
 # Threat walkthroughs
 
@@ -66,9 +73,10 @@
 
 # Appendix
 
+- [Three-OS behavior taxonomy](appendix/os-behavior-taxonomy.md)
 - [Telemetry cheat-sheet (Win ↔ Linux ↔ macOS)](appendix/telemetry-cheatsheet.md)
 - [Process lineage (Linux)](appendix/process-lineage.md)
 - [Cross-OS threat coverage matrix](appendix/threat-coverage-matrix.md)
 - [Safeguard pressure: why a TTP lands here, not there](appendix/safeguard-pressure.md)
 - [Staging & abused locations (Win ↔ Linux ↔ macOS)](appendix/staging-and-abused-paths.md)
-- [Source canon](appendix/sources.md)
+- [Further reading & references](appendix/sources.md)

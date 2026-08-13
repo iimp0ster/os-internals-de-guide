@@ -1,13 +1,17 @@
 # Introduction
 
-Start with the threat you are investigating. Then check what that threat leaves behind on
-Windows, Linux, or macOS. You can use the OS you know as your reference point without
-having to learn the other two from scratch.
+Start with the detection question you bring: a threat to investigate, a signal you observed, or
+a behavior you already understand in one operating system. Then check how that behavior appears
+on Windows, Linux, or macOS. The comparison is bidirectional: use the OS you know as the
+reference point, then translate the question into either of the other two without learning them
+from scratch.
 
-[Threat walkthroughs](threats/00-overview.md) are the front door. They show the OS-specific
+[Threat walkthroughs](threats/00-overview.md) are one front door. They show the OS-specific
 telemetry path, say when a path does not apply, and link to the graph that explains the
 behavior. If you already have a signal, use the [detection graph library](detection-graphs.md).
-If you need a route, open [Start here](start-here.md).
+If you are translating a familiar detection idea, begin with the
+[translation contract](foundations/00-translation-contract.md). If you need a route, open
+[Start here](start-here.md).
 
 ## The model
 
@@ -40,19 +44,20 @@ The behavior changes in two ways:
    payload can evade process telemetry on every OS, while Windows Script Block Logging
    may still capture its content.
 
-Start with the OS you know. The threat keeps the comparison honest.
+Start with the OS you know—Windows, Linux, or macOS. The threat keeps the comparison honest.
 
 ## Who this is for
 
 Detection engineers, hunters, and responders who know one OS and need to write or validate
-detections on the others. This is a detection guide, not a kernel-development or malware
-reverse-engineering text.
+detections on the others. Your starting point can be Windows, Linux, or macOS. This is a
+detection guide, not a kernel-development or malware reverse-engineering text.
 
 ## How to read the guide
 
-Start with a [threat walkthrough](threats/00-overview.md). It labels every OS as Applicable,
-Constrained, No native analogue, Telemetry blind, or Unknown. Then it gives the telemetry
-path and links to the graph chapters you need.
+If you start with a threat, open a [threat walkthrough](threats/00-overview.md). It labels every
+OS as Applicable, Constrained, No native analogue, Telemetry blind, or Unknown. Then it gives
+the telemetry path and links to the graph chapters you need. If you start with a behavior from
+an OS you know, use the [translation contract](foundations/00-translation-contract.md) first.
 
 ## How to read a graph chapter
 

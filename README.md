@@ -1,25 +1,49 @@
 # The Cross-OS Detection Graph
 
-**Start with a threat. See what it leaves behind on Windows, Linux, and macOS.**
+**Start with the detection question. See what it leaves behind on Windows, Linux, and macOS.**
 
 [Read the guide](https://iimp0ster.github.io/os-internals-de-guide/)
 
-> Status: public work in progress. The current release includes five threat walkthroughs
-> and reusable detection graphs for execution, persistence, privilege and access, and
-> one defense-evasion behavior.
+> Status: public work in progress. The current release includes a cross-OS Foundation layer,
+> five threat walkthroughs, and reusable detection graphs for execution, persistence, privilege
+> and access, and one defense-evasion behavior.
 
 ## Start here
 
 Use the route that matches the evidence you have:
 
+- **I know one OS and need the closest detection analogue on another:** start with the
+  [Translation contract](src/foundations/00-translation-contract.md), the rubric for the
+  Foundation layer.
 - **I have a threat hypothesis:** open a [threat walkthrough](src/threats/00-overview.md).
-- **I have telemetry but no hypothesis:** use the [detection graph library](src/detection-graphs.md).
-- **I am planning coverage:** use the [cross-OS coverage matrix](src/appendix/threat-coverage-matrix.md).
+- **I have telemetry but no hypothesis:** use the
+  [detection graph library](src/detection-graphs.md).
+- **I am planning coverage:** use the
+  [cross-OS coverage matrix](src/appendix/threat-coverage-matrix.md).
 
 The guide does not treat an empty OS column as safety. Each walkthrough labels a platform as
 Applicable, Constrained, No native analogue, Telemetry blind, or Unknown and explains why.
 
+## The defender-first model
+
+- **Behavior is the invariant:** processes, files, and sockets are nodes; `exec`, `open`,
+  `connect`, and `write` are edges.
+- **A chokepoint is the cut:** the node or edge every variant must cross is the detection anchor.
+- **Each OS is an overlay:** the same behavior maps to different native objects, collectors, and
+  blind spots.
+- **The divergence is the lesson:** the starting point can be Windows, Linux, or macOS; the
+  comparison shows what is closest, partial, absent, or not visible at the deployed sensor tier.
+
 ## What is in the guide
+
+### Foundations
+
+The [Translation contract](src/foundations/00-translation-contract.md) is the legend for reading
+the Foundation building blocks:
+
+- [Filesystem & staging](src/foundations/01-filesystem-and-staging.md)
+- [Process & loader behavior](src/foundations/02-process-and-loader-behavior.md)
+- [Network & connection behavior](src/foundations/03-network-and-connection-behavior.md)
 
 ### Threat walkthroughs
 
@@ -50,7 +74,7 @@ telemetry on each OS, sensor limits, detection logic, and expected false positiv
 - An OS-specific applicability decision with the reason behind it.
 - A short telemetry path from threat behavior to rule match.
 - The minimal data sources that can prove the behavior.
-- Defanged procedures or payload fragments where they explain what the rule is targeting.
+- Defanged procedure fragments where they explain what the rule is targeting.
 - Curated emulation event excerpts where the rule has been validated.
 
 The point is to make the comparison useful in an investigation. A Windows, Linux, or macOS
@@ -70,17 +94,18 @@ GitHub Actions builds each pull request and deploys the book to GitHub Pages fro
 ## Repository layout
 
 ```
-src/
-  start-here.md             # defender-first entry routes
-  threats/                  # threat walkthroughs and OS applicability decisions
-  detection-graphs.md       # signal-first graph index
-  execution/                # reusable execution graphs
-  persistence/              # reusable persistence graphs
-  privilege-escalation/     # reusable privilege and access graphs
-  defense-evasion/          # reusable defense-evasion graphs
-  appendix/                 # coverage matrix, cheatsheets, and source canon
-templates/chapter.md        # detection graph skeleton
-labs/                       # sensor configurations and lab material
+src/                       # the book
+  foundations/             # cross-OS comparison building blocks
+  threats/                 # threat walkthroughs and OS applicability decisions
+  detection-graphs.md      # signal-first graph index
+  execution/               # reusable execution graphs
+  persistence/             # reusable persistence graphs
+  privilege-escalation/    # reusable privilege and access graphs
+  defense-evasion/         # reusable defense-evasion graphs
+  appendix/                # taxonomy, coverage, cheatsheets, and further reading
+templates/chapter.md       # detection graph skeleton
+templates/threat-dossier.md # threat walkthrough skeleton
+labs/                      # sensor configurations and lab material
 ```
 
 ## License

@@ -61,6 +61,23 @@ after the system/Windows directories, so legitimate system DLLs resolve before C
 to side-loading** (T1574.002): the exe's own directory is still searched first, and **a signed
 exe can load an unsigned DLL because the signature is not re-verified at load**.
 
+```admonish tip title="Windows loader: keep four facts separate"
+A side-load investigation has a short evidence chain, but each link proves something different:
+
+| Fact | What it proves | What it does **not** prove |
+|---|---|---|
+| **Declared import** | The PE was built to request a DLL/function. | That the dependency was actually resolved at runtime. |
+| **Resolved module** | The loader chose a particular path/name. | That the module is malicious. |
+| **Mapped image** | The module entered the host process's address space; this is the useful `ImageLoad`/EDR evidence point. | The later objective or impact. |
+| **Observed outcome** | A child process, file action, network connection, or credential-access event followed. | That every earlier link was malicious on its own. |
+
+PE imports and the import-address table are valuable *static* triage. Runtime resolution is a
+separate question: software can also request a library or function dynamically, so it may not
+appear as a conventional import. Treat module-load telemetry as the bridge between the binary's
+declared dependencies and the behavior that follows. A signed host plus an unusual module path,
+signer mismatch, and a rare host-to-module pair is stronger evidence than any one field.
+```
+
 ```mermaid
 flowchart TB
     P["signed host exe (PlugX pairs one)"]:::seen -->|"Sysmon EID 1"| L(["PE loader"]):::seen
@@ -305,3 +322,13 @@ outside the system dir), **host-binary identity** (a known side-load target, or 
 loading a library it has no business loading), and **rarity** (first-seen host→library pairs).
 Pure "unsigned + non-system path" will drown you without process-context filtering.
 ```
+
+## Further reading used for this chapter
+
+- Matt Hand, *Evading EDR* (No Starch Press): Windows image-load telemetry and the limits of
+  treating a sensor event as a complete behavioral verdict.
+- Kyle Cucci, *Evasive Malware* (No Starch Press): PE loading, imports/exports, and DLL
+  search-order and side-loading mechanics.
+
+These books inform the explanatory model. The linked public sources and lab evidence remain the
+guide's basis for source-backed, testable detection claims.
