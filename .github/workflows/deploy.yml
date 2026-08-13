@@ -54,7 +54,7 @@ jobs:
           EOF
           mdbook build
       - name: Use the project preview as the homepage
-        run: cp book/project-preview.html book/index.html
+        run: cp src/project-preview.html book/index.html
       - name: Upload Pages artifact
         if: github.ref == 'refs/heads/main'
         uses: actions/upload-pages-artifact@v3
