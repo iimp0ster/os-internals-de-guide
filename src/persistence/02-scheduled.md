@@ -17,6 +17,30 @@ told about it** (`schtasks`, `crontab`, `launchctl`), and the manager tool can b
 > **Invariant:** a time-trigger definition must land where the scheduler reads it. The config
 > write is the durable artifact; the scheduler command is optional and evadable.
 
+## Choose an implementation
+
+Start here for the invariant and visibility comparison. Open an implementation guide when
+you need the native registration paths, event boundaries, detection layers, and validation
+details for one operating system.
+
+<div class="os-sprite-deck" role="group" aria-label="Scheduled execution implementation guides">
+  <a class="os-sprite-card" href="scheduled/windows-task-scheduler.md">
+    <img src="../assets/os/windows-pixel-panes.png" alt="">
+    <strong>WINDOWS</strong>
+    <span>Task Scheduler: registration, TaskCache, XML, and execution telemetry</span>
+  </a>
+  <div class="os-sprite-card" aria-label="Linux scheduled execution is covered in this comparison chapter">
+    <img src="../assets/os/linux-pixel-penguin.png" alt="">
+    <strong>LINUX</strong>
+    <span>cron, at, and systemd timers</span>
+  </div>
+  <div class="os-sprite-card" aria-label="macOS scheduled execution is covered in this comparison chapter">
+    <img src="../assets/os/macos-pixel-apple.png" alt="">
+    <strong>MACOS</strong>
+    <span>launchd calendar and interval scheduling</span>
+  </div>
+</div>
+
 ## 2. Threats that use it
 
 <div class="threat-use-grid">
