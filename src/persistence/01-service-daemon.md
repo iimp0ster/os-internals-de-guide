@@ -254,3 +254,21 @@ path** in user-writable/temp locations, **signer** (unsigned/ad-hoc on macOS; no
 `ServiceDll` outside System32), and **name mimicry** of real system services. The strongest
 single pivot is parent lineage: installers spawn services; web shells shouldn't.
 ```
+
+<!-- intelopes-source-bound:start:services-and-daemons-windows -->
+## Source-backed variation: Services and daemons (Windows)
+
+<div class="dossier-brief" role="note"><div><strong>EVIDENCE</strong><span class="status-chip source">behavior source-backed</span></div><div><strong>OS</strong><span>windows</span></div><div><strong>MECHANISM</strong><span>`Service Control Manager`</span></div></div>
+
+To guarantee execution, the DLL loader performs timing-based anti-sandbox checks to detect virtual environment delays and scans running processes in an attempt to weaken its permissions. The loader then decrypts shellcode hidden within an embedded PNG file to run a second stager that determines whether the malware operates with SYSTEM privileges.
+
+### Evidence and scope
+
+- [Casbaneiro: A Banking Trojan with Distributed Data-Receiving Servers \| FortiGuard Labs](https://www.fortinet.com/blog/threat-research/casbaneiro-a-banking-trojan-with-distributed-data-receiving-servers) — Deobfuscate/Decode Files or Information
+- [The Good, the Bad and the Ugly in Cybersecurity – Week 35](https://www.sentinelone.com/blog/the-good-the-bad-and-the-ugly-in-cybersecurity-week-35-8) — To guarantee execution, the DLL loader performs timing-based anti-sandbox checks to detect virtual environment delays and scans running processes in an attempt to weaken its permissions. The loader then decrypts shellcode hidden within an embedded PNG file to run a second stager that determines whether the malware operates with SYSTEM privileges. If these elevated rights are present, the malware proceeds directly to inject mode . Otherwise, it configures a Windows service for local persistence. Ultimately, the stager injects malicious shellcode into the legitimate vssvc.exe process, monitoring execution to re-inject the payload if terminated.
+- [Head Mare доставляет бэкдоры PhantomCore и PhantomGraph через необновленный сервер TrueConf](https://securelist.ru/tr/head-mare-targets-trueconf-server-with-phantomcore/116557) — PhantomGraph uses two Windows service modules and Microsoft OneDrive as its C2.
+- [What We Thought Was SMOKELOADER: Introducing REMUS](https://aachum.github.io/website/remus_analysis) — Source-bound procedure retained.
+- [The dual-use dilemma: Rethinking detection for remote access tool abuse](https://redcanary.com/blog/security-operations/rmm-detection) — it installs a service called HostService
+- [Threat Actors Achieve Persistence After SQL Injection](https://www.huntress.com/blog/sql-injection-attacker-persistence) — using nssm.exe , the " non-sucking service manager ", a freely available utility for creating a resilient Windows service
+- [Bank of America Phishing Email Delivers ScreenConnect Malware](https://www.huntress.com/blog/bank-spam-rmm) — The script then uses the Windows Service Descriptor Definition Language (SDDL) and Access Control Lists (ACLs) to block targets from making changes to their computer and hide the ScreenConnect process.
+<!-- intelopes-source-bound:end:services-and-daemons-windows -->
