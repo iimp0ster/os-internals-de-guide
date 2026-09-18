@@ -275,3 +275,16 @@ allowlists, user context (service vs interactive vs root), URL/destination reput
 and rarity (first-seen parent→child pairs). The high-confidence rule above adds an
 anomalous-parent constraint; the others need per-environment baselining before they alert.
 ```
+
+<!-- intelopes-source-bound:start:script-and-native-execution-windows -->
+## Source-backed variation: Script and native execution (Windows)
+
+<div class="dossier-brief" role="note"><div><strong>EVIDENCE</strong><span class="status-chip source">behavior source-backed</span></div><div><strong>OS</strong><span>windows</span></div><div><strong>MECHANISM</strong><span>`PowerShell`</span></div></div>
+
+The report explicitly references T1059.001.
+
+### Evidence and scope
+
+- [It’s Not Safe To Pay SafePa](https://www.huntress.com/blog/its-not-safe-to-pay-safepay) — The report explicitly references T1059.001.
+- [The State of AI-Enabled Malware August 2026: From Brand Abuse to Agentic Execution](https://unit42.paloaltonetworks.com/ai-enabled-malware-analysis) — Detect PowerShell and registry activity that disables Windows Defender, especially when followed by shadow-copy deletion or ransom-wallpaper modification.
+<!-- intelopes-source-bound:end:script-and-native-execution-windows -->
