@@ -138,7 +138,7 @@ default-on and which depends on audit policy or an endpoint sensor.
 
 <div class="dossier-brief" role="note"><div><strong>EVIDENCE</strong><span class="status-chip source">behavior source-backed</span></div><div><strong>OS</strong><span>windows</span></div><div><strong>MECHANISM</strong><span>`Task Scheduler`</span></div></div>
 
-[T1053.005] Scheduled Task/Job: Scheduled Task – Malicious scheduled tasks were used for persistence via schtasks.exe
+\[T1053.005\] Scheduled Task/Job: Scheduled Task – Malicious scheduled tasks were used for persistence via schtasks.exe
 
 ### Evidence and scope
 
