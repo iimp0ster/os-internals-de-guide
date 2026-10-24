@@ -305,3 +305,17 @@ the scheduler (`svchost` / `cron` / `launchd`), so don't anchor execution detect
 High-frequency triggers (`/sc minute`, `StartInterval` of seconds, `* * * * *`) are a strong
 secondary signal, legitimate jobs rarely fire that often.
 ```
+
+<!-- intelopes-source-bound:start:persistence-scheduled-execution-linux -->
+## Source-backed variation: Persistence / Scheduled execution (Linux)
+
+<div class="dossier-brief" role="note"><div><strong>EVIDENCE</strong><span class="status-chip source">behavior source-backed</span></div><div><strong>OS</strong><span>linux</span></div><div><strong>MECHANISM</strong><span>`cron`</span></div></div>
+
+Crontab branch: writes to /var/spool/cron/root, where cron picks up a scheduled job that opens a socket to the C2, downloads the payload, and runs it.
+
+### Evidence and scope
+
+- [JADEPUFFER: Agentic ransomware for automated database extortion](https://www.sysdig.com/blog/jadepuffer-agentic-ransomware-for-automated-database-extortion) — It installed a crontab entry on the Langflow server beaconing to attacker infrastructure every 30 minutes
+- [threat-research/ancient-botnet at main · ksi-digital/threat-research](https://github.com/ksi-digital/threat-research/tree/main/ancient-botnet) — + wget" --\> B\["Victim (our hone B -- "GET /\<arch\>" --\> C Timeline (UTC) https://github.com/ksi-digital/threat-research/tree/main/ancient-botnet B -- "GET /persist.sh" --\> C\["Payload server 89.163.157\[.\]131:8080"\] B -- "install .ancient cron, rc.local, init.d" --\> B B -- "DNS-over-TLS 1.1.1.1:853" --\>
+- [Redis Instances Abuse](https://raw.githubusercontent.com/PaloAltoNetworks/Unit42-timely-threat-intel/main/2026-09-18-Redis-Instances-Abuse.txt) — Crontab branch: writes to /var/spool/cron/root, where cron picks up a scheduled job that opens a socket to the C2, downloads the payload, and runs it.
+<!-- intelopes-source-bound:end:persistence-scheduled-execution-linux -->
